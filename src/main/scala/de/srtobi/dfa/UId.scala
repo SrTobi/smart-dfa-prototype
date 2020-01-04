@@ -18,6 +18,6 @@ object UId {
   def apply(group: String): UId = {
     val cur = nextIdByGroups.getOrElseUpdate(group, 1)
     nextIdByGroups(group) = cur + 1
-    return new UId(cur, group)
+    new UId(cur, group)
   }
 }
