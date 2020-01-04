@@ -40,12 +40,7 @@ object LangTokens {
   // from # 11.6
   // implementation inspired by http://www.scala-sbt.org/0.12.4/sxr/Parsers.scala.html#326954
   private def unicodeIdStart[_: P] = CharPred(_.isLetter)
-  private def unicodeIdContinue[_: P] = CharPred(c => c.isLetterOrDigit) /* TODO: Check if this is the correct implementation */
-
-  // # 11.1
-  private val zwnj = "\u200C"
-  private val zwj = "\u200D"
-  private val zwnbsp = "\uFEFF"
+  private def unicodeIdContinue[_: P] = CharPred(c => c.isLetterOrDigit)
 
   // # 10.1
   def sourceCharacter[_: P]: P[Unit] = AnyChar
@@ -78,7 +73,7 @@ object LangTokens {
 
   // # 11.6
   def identifierStart[_: P]: P[Unit] = P(unicodeIdStart | "$" | "_")
-  def identifierPart[_: P]: P[Unit] = P(unicodeIdContinue | "$" | "_" | zwnj | zwj)
+  def identifierPart[_: P]: P[Unit] = P(unicodeIdContinue | "$" | "_")
   def identifierName[_: P]: P[String] = P(unicodeIdStart ~ unicodeIdStart.rep).!.filter(!reservedWord.contains(_))
 
   // # 11.8.1 / 11.8.2
@@ -114,8 +109,8 @@ object LangParser {
 
   def blockOrReturnExpression[_:P]: P[Ast.Block] = P(
     block
-      | expression.map((e) => Seq(Ast.ReturnStmt(Some(e))))
-  ).log
+      | expression.map(e => Seq(Ast.ReturnStmt(Some(e))))
+  )
 
   def primaryExpression[_: P]: P[Ast.Expression] = P(
     P("undefined").map(_ => Ast.UndefinedLiteral()) |
@@ -126,16 +121,16 @@ object LangParser {
       ("(" ~ identifierName.rep(sep=",") ~ ")" ~ "=>" ~ blockOrReturnExpression).map((Ast.Function.apply _).tupled) |
       ("(" ~/ expression ~ ")") |
       ("{" ~/ property.rep(sep=",") ~ "}").map(Ast.Object)
-  ).log
+  )
 
   private def makeInner[_: P](left: Ast.Expression): P[Ast.Expression] = P(
     P(Pass ~ "(" ~/ expression.rep(sep=",") ~ ")").map(args => Ast.Call(left, args)) |
       P(Pass ~ "." ~/ identifierName).map(Ast.PropertyAccess(left, _))
-  ).?.flatMapX(_.map(makeInner).getOrElse(Pass.map(_ => left))).log
+  ).?.flatMapX(_.map(makeInner).getOrElse(Pass.map(_ => left)))
 
   def innerExpression[_: P]: P[Ast.Expression] = P(
     primaryExpression.flatMapX(makeInner)
-  ).log
+  )
 
   def expression[_: P]: P[Ast.Expression] = P(
     (innerExpression ~~ (Pass ~ ("+" | "-").! ~ innerExpression).repX).map {
@@ -143,15 +138,15 @@ object LangParser {
         case (left, (op, right)) => Ast.Operator(op, left, right)
       }
     }
-  ).log
+  )
 
   def blockOrStatement[_: P]: P[Ast.Block] = P(
     block
-      | P(";").map((_) => Seq())
+      | P(";").map(_ => Seq())
       | statement.map(Seq(_))
   )
 
-  def exprEnd[_: P]: P[Unit] = P(noLineTerminator.repX ~~ (&(End) | &("}") | &("else") | CharIn(";\n"))).log
+  def exprEnd[_: P]: P[Unit] = P(noLineTerminator.repX ~~ (&(End) | &("}") | &("else") | CharIn(";\n")))
 
   def statements[_: P]: P[Seq[Ast.Statement]] = P((CharIn(";").map(_ => None) | statement.map(Some(_))).rep.map(_.flatten))
   def block[_: P]: P[Seq[Ast.Statement]] = P("{" ~ statements ~ "}")
@@ -226,7 +221,7 @@ object LangTests {
       case Parsed.Success(ast, _) =>
         println(ast)
         println(LangPrinter.print(ast))
-      case f@Parsed.Failure(lastParser, _, extra) =>
+      case f@Parsed.Failure(_, _, extra) =>
         println(f)
         println(extra.trace().longAggregateMsg)
     }
