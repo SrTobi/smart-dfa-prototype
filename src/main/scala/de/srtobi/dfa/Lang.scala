@@ -9,12 +9,12 @@ object Ast {
     val id: UId = UId("ast-node")
   }
   sealed abstract class Expression extends Node
-  case class UndefinedLiteral() extends Expression
+  case object UndefinedLiteral extends Expression
   case class StringLiteral(value: String) extends Expression
   case class BooleanLit(value: Boolean) extends Expression
   case class NumberLit(value: Int) extends Expression
-  case class Object(properties: Seq[Property]) extends Expression
   case class Identifier(name: String) extends Expression
+  case class Object(properties: Seq[Property]) extends Expression
   case class Property(name: String, init: Expression) extends Node
   case class Operator(op: String, left: Expression, right: Expression) extends Expression
   case class Function(params: Seq[String], block: Block) extends Expression
@@ -27,7 +27,6 @@ object Ast {
   case class IfStmt(condition: Expression, success: Block, fail: Option[Block]) extends Statement
   case class ReturnStmt(expression: Option[Expression]) extends Statement
   case class AssignmentStmt(target: Expression, expression: Expression) extends Statement
-  case class VarStmt(name: String, init: Expression) extends Statement
 
   case class Script(main: Block) extends Node
 }
@@ -113,7 +112,7 @@ object LangParser {
   )
 
   def primaryExpression[_: P]: P[Ast.Expression] = P(
-    P("undefined").map(_ => Ast.UndefinedLiteral()) |
+    P("undefined").map(_ => Ast.UndefinedLiteral) |
       booleanLiteral.map(Ast.BooleanLit) |
       decimalIntegerLiteral.map(Ast.NumberLit) |
       identifierName.map(Ast.Identifier) |
@@ -153,12 +152,22 @@ object LangParser {
   def statement[_: P]: P[Ast.Statement] = P(
     ("if" ~/ "(" ~/ expression ~ ")" ~/ blockOrStatement ~/ ("else" ~/ blockOrStatement).?).map((Ast.IfStmt.apply _).tupled) |
       ("return" ~/ expression.?).map(Ast.ReturnStmt) |
-      ("var" ~/ identifierName ~/ "=" ~/ expression ~~ exprEnd).map((Ast.VarStmt.apply _).tupled) |
       (NoCut(expression) ~ "=" ~/ expression ~~ exprEnd).map((Ast.AssignmentStmt.apply _).tupled) |
       (expression ~~ exprEnd).map(Ast.ExpressionStmt)
   )
 
   def script[_: P]: P[Ast.Script] = P(Pass ~ statements ~ End).map(Ast.Script)
+
+  def parse(code: String): Ast.Script = {
+    fastparse.parse(code, LangParser.script(_)) match {
+      case Parsed.Success(ast, _) =>
+        ast
+      case f@Parsed.Failure(_, _, extra) =>
+        println(f)
+        println(extra.trace().longAggregateMsg)
+        throw new Exception("Failed to compile")
+    }
+  }
 }
 
 object LangPrinter {
@@ -173,7 +182,6 @@ object LangPrinter {
       case IfStmt(cond, success, Some(fail)) => indent + s"if (${p(cond)}) ${printBlk(success, indent)} else ${printBlk(fail, indent)}"
       case IfStmt(cond, success, None) => indent + s"if (${p(cond)}) ${printBlk(success, indent)}"
       case ReturnStmt(expr) => indent + s"return ${expr.map(p).getOrElse("")}"
-      case VarStmt(name, init) => indent + s"var $name = ${p(init)}"
       case AssignmentStmt(target, init) => indent + s"${p(target)} = ${p(init)}"
       case Object(properties) => properties.map(p).mkString("@{", ", ", "}")
       case Property(name, init) => s"$name: ${p(init)}"
@@ -186,11 +194,11 @@ object LangPrinter {
       case Call(base, args) => p(base) + args.map(p).mkString("(", ",", ")")
       case Operator(op, left, right) => s"(${p(left)} $op ${p(right)})"
       case PropertyAccess(base, property) => s"${p(base)}.$property"
-      case UndefinedLiteral() => "undefined"
+      case UndefinedLiteral => "undefined"
     }
   }
 
-  private def printBlk(block: Block, indent: String, root: Boolean = false) = block
+  private def printBlk(block: Block, indent: String, root: Boolean = false): String = block
     .map(printNode(_, indent + (if(root) "" else "  "))) match {
     case l if root => l.mkString(";\n")
     case l => l.mkString("{\n", ";\n", "\n" + indent + "}")
