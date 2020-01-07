@@ -44,7 +44,7 @@ class Interpreter(scriptCfg: ControlFlowGraph, stdLib: Seq[(String, DfConcreteVa
 
     def process(): Unit = {
       val cur = funcCfg.instructionAt(curInstrIndex)
-      cur.accept(visitor)
+      executeInstruction(cur)
       if (curInstrIndex == cur.index) {
         curInstrIndex += 1
       }
@@ -69,42 +69,37 @@ class Interpreter(scriptCfg: ControlFlowGraph, stdLib: Seq[(String, DfConcreteVa
       case _ => throw new Exception(s"$value is not an object")
     }
 
-    private val visitor = new cfg.InstructionVisitor {
-      override def visitMov(mov: cfg.Mov): Unit =
-        store(mov.target, pin(mov.source))
+    private def executeInstruction(instruction: cfg.Instruction): Unit = instruction match {
+      case cfg.Mov(target, source) =>
+        store(target, pin(source))
 
-      override def visitWrite(write: cfg.Write): Unit = ???
+      case cfg.WriteProp(base, member, source) =>
+        writeObj(asObj(base), member)(pin(source))
 
-      override def visitWrite(writeProp: cfg.WriteProp): Unit =
-        writeObj(asObj(writeProp.base), writeProp.member)(pin(writeProp.value))
+      case cfg.ReadProp(target, base, member) =>
+        store(target, readObj(asObj(base), member))
 
-      override def visitRead(read: cfg.Read): Unit = ???
-
-      override def visitReadProp(readProp: cfg.ReadProp): Unit =
-        store(readProp.target, readObj(asObj(readProp.base), readProp.member))
-
-      override def visitBinaryOp(binaryOp: cfg.BinaryOp): Unit = {
-        val left = pin(binaryOp.left)
-        val right = pin(binaryOp.right)
+      case cfg.BinaryOp(target, leftNode, op, rightNode) =>
+        val left = pin(leftNode)
+        val right = pin(rightNode)
         def int(df: DfConcreteValue): Int = df match {
           case DfConcreteInt(i) => i
           case _ => throw new Exception(s"Cannot convert $df into int")
         }
-        val result = binaryOp.op match {
+        val result = op match {
           case "==" => DfValue.boolean(left == right)
           case "!=" => DfValue.boolean(left != right)
           case "+" => DfValue.int(int(left) + int(right))
           case "-" => DfValue.int(int(left) - int(right))
         }
-        store(binaryOp.target, result)
-      }
+        store(target, result)
 
-      override def visitCall(call: cfg.Call): Unit = {
-        val pinnedArgs = call.args.map(pin)
-        pin(call.funcEntity) match {
+      case cfg.Call(maybeTarget, func, args) =>
+        val pinnedArgs = args.map(pin)
+        pin(func) match {
           case lambda: DfConcreteLambdaRef =>
             val vars = lambda.params.map(_.name).zip(pinnedArgs)
-            val newFrame = new StackFrame(lambda.cfg, mutable.Map.from(vars), Some(StackFrame.this), call.ret)
+            val newFrame = new StackFrame(lambda.cfg, mutable.Map.from(vars), Some(StackFrame.this), maybeTarget)
             curStackFrame = Some(newFrame)
 
           case DfConcreteInternalFunc(func) =>
@@ -115,42 +110,38 @@ class Interpreter(scriptCfg: ControlFlowGraph, stdLib: Seq[(String, DfConcreteVa
                 println(pinnedArgs.mkString(" "))
                 DfValue.undefined
             }
-            call.ret.foreach(store(_, ret))
+            maybeTarget.foreach(store(_, ret))
 
           case f =>
             throw new Exception(s"Cannot call $f")
         }
-      }
 
-      override def visitNew(newInstr: cfg.New): Unit =
-        store(newInstr.target, instantiateObject())
+      case cfg.New(target) =>
+        store(target, instantiateObject())
 
-      override def visitJump(jump: cfg.Jump): Unit =
-        curInstrIndex = jump.targetLabel.targetIndex
+      case cfg.Jump(targetLabel) =>
+        curInstrIndex = targetLabel.targetIndex
 
-      override def visitJumpIfNot(jumpIf: cfg.JumpIfNot): Unit = {
-        val cond = pin(jumpIf.condition)
+      case cfg.JumpIfNot(condition, targetLabel) =>
+        val cond = pin(condition)
         cond match {
           case DfConcreteInt(0) | DfUndefined | DfFalse =>
-            curInstrIndex = jumpIf.targetLabel.targetIndex
+            curInstrIndex = targetLabel.targetIndex
 
           case _ =>
         }
-      }
 
-      override def visitRet(ret: cfg.Ret): Unit = {
+      case cfg.Ret(returnValue) =>
         parent.fold(throw new Exception("Cannot return from top level")) { parent =>
-          returnTarget.foreach(parent.store(_, pin(ret.returnValue)))
+          returnTarget.foreach(parent.store(_, pin(returnValue)))
           curStackFrame = Some(parent)
         }
-      }
 
-      override def visitEnd(end: cfg.End): Unit = {
+      case cfg.End() =>
         if (parent.isDefined) throw new Exception("Cannot end in lambda")
         curStackFrame = None
-      }
 
-      override def visitNoop(noop: cfg.Noop): Unit = ()
+      case cfg.Noop(_) => ()
     }
   }
 }
