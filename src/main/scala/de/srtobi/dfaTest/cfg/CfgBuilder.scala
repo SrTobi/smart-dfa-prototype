@@ -1,9 +1,9 @@
-package de.srtobi.dfa
+package de.srtobi.dfaTest
 package cfg
 
-import scala.collection.mutable
+import de.srtobi.dfaTest.cfg.CfgBuilder._
 
-import CfgBuilder._
+import scala.collection.mutable
 
 class CfgBuilder {
   private var nextRegisterId = 0

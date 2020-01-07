@@ -1,6 +1,6 @@
-package de.srtobi.dfa
+package de.srtobi.dfaTest
 
-import de.srtobi.dfa.cfg._
+import de.srtobi.dfaTest.cfg._
 
 object CfgTransformer {
   def transformScript(script: Ast.Script): ControlFlowGraph = {

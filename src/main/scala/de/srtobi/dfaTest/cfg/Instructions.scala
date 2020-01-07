@@ -1,4 +1,4 @@
-package de.srtobi.dfa
+package de.srtobi.dfaTest
 package cfg
 
 sealed abstract class Instruction {
@@ -11,7 +11,7 @@ sealed abstract class Instruction {
     _index
   }
 
-  private[dfa] def index_=(idx: Int): Unit = {
+  private[dfaTest] def index_=(idx: Int): Unit = {
     assert(_index == -1)
     assert(idx >= 0)
     _index = idx
@@ -45,7 +45,7 @@ object Instruction {
                   hasControlFlowAfter: Boolean = true,
                   isJump: Boolean = false)
 
-  private[dfa] def finalizeInstruction(instr: Instruction, graph: ControlFlowGraph, labels: Set[Label]): Unit = {
+  private[dfaTest] def finalizeInstruction(instr: Instruction, graph: ControlFlowGraph, labels: Set[Label]): Unit = {
     assert(instr._index >= 0)
     assert(instr._graph == null)
     assert(instr._labels == null)

@@ -1,4 +1,4 @@
-package de.srtobi.dfa
+package de.srtobi.dfaTest
 package cfg
 
 import scala.language.implicitConversions

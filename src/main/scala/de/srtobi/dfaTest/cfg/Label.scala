@@ -1,4 +1,4 @@
-package de.srtobi.dfa
+package de.srtobi.dfaTest
 package cfg
 
 abstract class Label {
