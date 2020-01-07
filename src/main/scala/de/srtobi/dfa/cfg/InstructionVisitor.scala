@@ -12,7 +12,7 @@ abstract class InstructionVisitor {
   def visitCall(call: Call): Unit = visitInstruction(call)
   def visitNew(newInstr: New): Unit = visitInstruction(newInstr)
   def visitJump(jump: Jump): Unit = visitInstruction(jump)
-  def visitJumpIf(jumpIf: JumpIfNot): Unit = visitInstruction(jumpIf)
+  def visitJumpIfNot(jumpIf: JumpIfNot): Unit = visitInstruction(jumpIf)
   def visitRet(ret: Ret): Unit = visitInstruction(ret)
   def visitEnd(end: End): Unit = visitInstruction(end)
   def visitNoop(noop: Noop): Unit = visitInstruction(noop)

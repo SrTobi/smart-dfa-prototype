@@ -3,10 +3,10 @@ package cfg
 
 class Call private[cfg](val ret: Option[DfVariable],
                         val funcEntity: DfEntity,
-                        val params: Seq[DfEntity]) extends Instruction {
+                        val args: Seq[DfEntity]) extends Instruction {
 
 
-  override def sourceEntities: Seq[DfEntity] = params
+  override def sourceEntities: Seq[DfEntity] = args
   override def variables: Seq[DfVariable] = ret.toSeq
 
   override def asmString: String = {
@@ -20,7 +20,7 @@ class Call private[cfg](val ret: Option[DfVariable],
     builder.append(funcEntity)
     builder.append("]")
 
-    builder.append(params.mkString("(", ", ", ")"))
+    builder.append(args.mkString("(", ", ", ")"))
 
     builder.toString()
   }

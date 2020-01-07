@@ -6,7 +6,7 @@ class JumpIfNot private[cfg](val condition: DfEntity, val targetLabel: Label) ex
   override def variables: Seq[DfVariable] = Seq.empty
   override def asmString: String = s"ifNot $condition -> $targetLabel"
   override def info: Instruction.Info = JumpIfNot
-  override def accept(visitor: InstructionVisitor): Unit = visitor.visitJumpIf(this)
+  override def accept(visitor: InstructionVisitor): Unit = visitor.visitJumpIfNot(this)
 }
 
 object JumpIfNot extends Instruction.Info(

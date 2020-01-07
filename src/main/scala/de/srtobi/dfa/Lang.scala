@@ -98,9 +98,9 @@ object LangTokens {
 
 object LangParser {
 
+  import LangTokens._
   import fastparse._
   import ScalaWhitespace._
-  import LangTokens._
 
   def property[_: P]: P[Ast.Property] = P(
     identifierName ~/ ":" ~/ expression
@@ -132,7 +132,7 @@ object LangParser {
   )
 
   def expression[_: P]: P[Ast.Expression] = P(
-    (innerExpression ~~ (Pass ~ ("+" | "-").! ~ innerExpression).repX).map {
+    (innerExpression ~~ (Pass ~ ("+" | "-" | "==" | "!=").! ~ innerExpression).repX).map {
       case (first, tail) => tail.foldLeft(first){
         case (left, (op, right)) => Ast.Operator(op, left, right)
       }

@@ -14,7 +14,6 @@ class DfRegister(val id: Int) extends DfVariable {
   override def name: String = "%" + Integer.toUnsignedString(id, 36)
 }
 case class DfLocalVariable(override val name: String) extends DfVariable
-case class DfMemberVariable(override val name: String) extends DfVariable
 
 sealed abstract class DfValue extends DfEntity
 
@@ -22,10 +21,10 @@ sealed abstract class DfValue extends DfEntity
 object DfValue {
   def any: DfValue = new DfAbstractValue
 
-  def boolean(value: Boolean): DfValue = DfConcreteBoolean(value)
-  def int(value: Int): DfValue = DfConcreteInt(value)
+  def boolean(value: Boolean): DfConcreteValue = DfConcreteBoolean(value)
+  def int(value: Int): DfConcreteValue = DfConcreteInt(value)
 
-  def undefined: DfValue = DfUndefined
+  def undefined: DfConcreteValue = DfUndefined
 }
 
 class DfAbstractValue extends DfValue {
@@ -34,7 +33,9 @@ class DfAbstractValue extends DfValue {
 
 sealed abstract class DfConcreteValue extends DfValue
 
-class DfConcreteAnyRef extends DfConcreteValue
+sealed abstract class DfConcreteAnyRef extends DfConcreteValue
+
+class DfConcreteObjectRef extends DfConcreteAnyRef
 
 class DfConcreteStringRef(value: String) extends DfConcreteAnyRef {
   override def toString: String = '\"' + value + '\"'
@@ -47,6 +48,11 @@ class DfConcreteLambdaRef(val lambda: Ast.Function,
     s"lambda(${params.mkString(", ")})"
 }
 
+case class DfConcreteInternalFunc(val name: String) extends DfConcreteAnyRef {
+  override def toString: String =
+    s"internal[$name]"
+}
+
 object DfConcreteLambdaRef {
   class Parameter(val variable: DfVariable) {
     def name: String = variable.name
@@ -54,7 +60,7 @@ object DfConcreteLambdaRef {
   }
 }
 
-sealed abstract class DfConcreteAnyVal extends DfValue {
+sealed abstract class DfConcreteAnyVal extends DfConcreteValue {
   def value: AnyVal
 }
 
