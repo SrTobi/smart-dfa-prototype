@@ -1,5 +1,6 @@
-package de.srtobi.dfaTest
+package de.srtobi.dfaTest.cfg
 
+import de.srtobi.dfaTest.{DfConcreteLambdaRef, cfg}
 
 class ControlFlowGraph private (val instructions: Array[cfg.Instruction], val lambdas: Seq[DfConcreteLambdaRef]) {
   assert(instructions.length > 0)
@@ -56,7 +57,7 @@ class ControlFlowGraph private (val instructions: Array[cfg.Instruction], val la
 }
 
 object ControlFlowGraph {
-  private[dfaTest] def apply(instructions: Array[cfg.Instruction]): ControlFlowGraph = {
+  private[cfg] def apply(instructions: Array[cfg.Instruction]): ControlFlowGraph = {
     val lambdas =
       instructions.flatMap(_.sourceEntities.collect { case lambda: DfConcreteLambdaRef => lambda })
 

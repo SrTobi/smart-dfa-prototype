@@ -1,5 +1,7 @@
 package de.srtobi.dfaTest
 
+import de.srtobi.dfaTest.cfg.ControlFlowGraph
+
 
 sealed abstract class DfEntity {
 }

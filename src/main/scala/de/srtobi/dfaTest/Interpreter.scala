@@ -1,5 +1,7 @@
 package de.srtobi.dfaTest
 
+import de.srtobi.dfaTest.cfg.ControlFlowGraph
+
 import scala.collection.mutable
 
 class Interpreter(scriptCfg: ControlFlowGraph, stdLib: Seq[(String, DfConcreteValue)] = Interpreter.stdLib)(input: (String, DfConcreteValue)*) {
