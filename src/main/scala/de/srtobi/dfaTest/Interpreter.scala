@@ -52,7 +52,7 @@ class Interpreter(scriptCfg: ControlFlowGraph, stdLib: Seq[(String, DfConcreteAn
       }
     }
 
-    private def load(entity: DfEntity): DfConcreteAny = entity match {
+    private def load(entity: DfVarOrValue): DfConcreteAny = entity match {
       case reg: DfRegister => registered(reg)
       case DfLocalVariable(name) => vars.getOrElseUpdate(name, DfUndefined)
       case value: DfConcreteAny => value
@@ -64,7 +64,7 @@ class Interpreter(scriptCfg: ControlFlowGraph, stdLib: Seq[(String, DfConcreteAn
     }
 
     @scala.annotation.tailrec
-    private def asObj(value: DfEntity): DfConcreteObjectRef = value match {
+    private def asObj(value: DfVarOrValue): DfConcreteObjectRef = value match {
       case v: DfVariable => asObj(load(v))
       case obj: DfConcreteObjectRef => obj
       case _ => throw new Exception(s"$value is not an object")

@@ -148,7 +148,7 @@ object CfgTransformer {
 
 
   private def buildExprOr(expr: Option[Ast.Expression],
-                          result: => DfEntity,
+                          result: => DfVarOrValue,
                           rreq: ResultRequirement = RequireResult)(implicit builder: CfgBuilder): ExprResult =
     expr.map(transformExpr(_, rreq)).getOrElse(rreq.satisfy(result))
 

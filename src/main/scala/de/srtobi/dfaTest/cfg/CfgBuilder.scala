@@ -47,28 +47,28 @@ class CfgBuilder {
   def resolveVariable(name: String): DfVariable =
     variableCache.getOrElseUpdate(name, DfLocalVariable(name))
 
-  def mov(target: DfVariable, source: DfEntity): this.type = {
+  def mov(target: DfVariable, source: DfVarOrValue): this.type = {
     if (target != source) {
       newInstr(new Mov(target, source))
     }
     this
   }
 
-  def assign(name: String, source: DfEntity): this.type =
+  def assign(name: String, source: DfVarOrValue): this.type =
     mov(resolveVariable(name), source)
 
-  def pinToNewRegister(entity: DfEntity): DfRegister = {
+  def pinToNewRegister(entity: DfVarOrValue): DfRegister = {
     val reg = newRegister()
     mov(reg, entity)
     reg
   }
 
-  def pinToRegister(entity: DfEntity): DfRegister = entity match {
+  def pinToRegister(entity: DfVarOrValue): DfRegister = entity match {
     case reg: DfRegister => reg
     case nonReg => pinToNewRegister(nonReg)
   }
 
-  def pin(source: DfEntity): DfEntity = source match {
+  def pin(source: DfVarOrValue): DfVarOrValue = source match {
     case reg: DfRegister => reg
     case value: DfConcreteAny => value
     case nonReg => pinToNewRegister(nonReg)
@@ -77,29 +77,29 @@ class CfgBuilder {
   def newRegister(): DfRegister =
     new DfRegister(newRegisterId())
 
-  def binaryOp(target: DfVariable, left: DfEntity, op: String, right: DfEntity): this.type = {
+  def binaryOp(target: DfVariable, left: DfVarOrValue, op: String, right: DfVarOrValue): this.type = {
     newInstr(new BinaryOp(target, left, op, right))
     this
   }
 
-  def noop(entity: DfEntity): this.type = {
+  def noop(entity: DfVarOrValue): this.type = {
     if (!entity.isInstanceOf[DfRegister]) {
       newInstr(new Noop(entity))
     }
     this
   }
 
-  def read(target: DfVariable, base: DfEntity, member: String): this.type = {
+  def read(target: DfVariable, base: DfVarOrValue, member: String): this.type = {
     newInstr(new ReadProp(target, base, member))
     this
   }
 
-  def write(base: DfEntity, member: String, value: DfEntity): this.type = {
+  def write(base: DfVarOrValue, member: String, value: DfVarOrValue): this.type = {
     newInstr(new WriteProp(base, member, value))
     this
   }
 
-  def ret(entity: DfEntity): this.type = {
+  def ret(entity: DfVarOrValue): this.type = {
     newInstr(new Ret(entity))
     this
   }
@@ -114,7 +114,7 @@ class CfgBuilder {
     this
   }
 
-  def call(ret: Option[DfVariable], func: DfEntity, params: Seq[DfEntity]): this.type = {
+  def call(ret: Option[DfVariable], func: DfVarOrValue, params: Seq[DfVarOrValue]): this.type = {
     newInstr(new Call(ret, func, params))
     this
   }
@@ -124,7 +124,7 @@ class CfgBuilder {
     this
   }
 
-  def jumpIfFalse(condition: DfEntity, target: BuildLabel): this.type = {
+  def jumpIfFalse(condition: DfVarOrValue, target: BuildLabel): this.type = {
     newInstr(new JumpIfNot(condition, target))
     this
   }

@@ -4,17 +4,17 @@ package cfg
 import scala.language.implicitConversions
 
 abstract class ExprResult {
-  def get: DfEntity
-  def pin(implicit builder: CfgBuilder): DfEntity = builder.pin(get)
+  def get: DfVarOrValue
+  def pin(implicit builder: CfgBuilder): DfVarOrValue = builder.pin(get)
   def pinRegister(implicit builder: CfgBuilder): DfRegister = builder.pinToRegister(get)
 }
 
 object ExprResult {
-  implicit def ResultToEntity(result: ExprResult): DfEntity = result.get
+  implicit def ResultToEntity(result: ExprResult): DfVarOrValue = result.get
 }
 
 abstract class ResultRequirement {
-  def satisfy(entity: DfEntity, noop: Boolean = false)(implicit builder: CfgBuilder): ExprResult
+  def satisfy(entity: DfVarOrValue, noop: Boolean = false)(implicit builder: CfgBuilder): ExprResult
   def satisfyUndefined(noop: Boolean = false)(implicit builder: CfgBuilder): ExprResult = satisfy(builder.undefined, noop)
   def satisfyNothing(noop: Boolean = false)(implicit builder: CfgBuilder): ExprResult = satisfy(builder.undefined, noop)
 
@@ -28,11 +28,11 @@ abstract class ResultRequirement {
 
 case object RequireNoResult extends ResultRequirement {
   private case object NoResult extends ExprResult {
-    override def get: DfEntity =
+    override def get: DfVarOrValue =
       throw new UnsupportedOperationException("Cannot get result. No result was requested")
   }
 
-  override def satisfy(entity: DfEntity, noop: Boolean = true)(implicit builder: CfgBuilder): ExprResult = {
+  override def satisfy(entity: DfVarOrValue, noop: Boolean = true)(implicit builder: CfgBuilder): ExprResult = {
     if (noop) {
       builder.noop(entity)
     }
@@ -55,10 +55,10 @@ case object RequireNoResult extends ResultRequirement {
 
 final class RequireResultToProvidedSink(sink: DfVariable) extends ResultRequirement {
   case object SinkResult extends ExprResult {
-    override def get: DfEntity = sink
+    override def get: DfVarOrValue = sink
   }
 
-  override def satisfy(entity: DfEntity, noop: Boolean)(implicit builder: CfgBuilder): ExprResult = {
+  override def satisfy(entity: DfVarOrValue, noop: Boolean)(implicit builder: CfgBuilder): ExprResult = {
     builder.mov(sink, entity)
     SinkResult
   }
@@ -79,7 +79,7 @@ final class RequireResultToProvidedSink(sink: DfVariable) extends ResultRequirem
 
 sealed class RequireDirectResult extends ResultRequirement {
   import RequireDirectResult._
-  override def satisfy(entity: DfEntity, noop: Boolean)(implicit builder: CfgBuilder): ExprResult = {
+  override def satisfy(entity: DfVarOrValue, noop: Boolean)(implicit builder: CfgBuilder): ExprResult = {
     DirectResult(entity)
   }
 
@@ -102,8 +102,8 @@ sealed class RequireDirectResult extends ResultRequirement {
 }
 
 object RequireDirectResult {
-  private case class DirectResult(value: DfEntity) extends ExprResult {
-    override def get: DfEntity = value
+  private case class DirectResult(value: DfVarOrValue) extends ExprResult {
+    override def get: DfVarOrValue = value
   }
 }
 

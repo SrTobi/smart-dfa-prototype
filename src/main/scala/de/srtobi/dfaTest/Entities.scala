@@ -3,9 +3,9 @@ package de.srtobi.dfaTest
 import de.srtobi.dfaTest.cfg.ControlFlowGraph
 
 
-sealed trait DfEntity
+sealed trait DfVarOrValue
 
-sealed abstract class DfVariable extends DfEntity {
+sealed abstract class DfVariable extends DfVarOrValue {
   def name: String
 
   override def toString: String = name
@@ -30,7 +30,7 @@ case object DfAny extends DfAbstractAny {
   override def canBeAllOf(value: DfAbstractAny): Boolean = value == DfAny
 }
 
-sealed abstract class DfConcreteAny extends DfAbstractAny with DfEntity {
+sealed abstract class DfConcreteAny extends DfAbstractAny with DfVarOrValue {
   final override def canBeAllOf(value: DfAbstractAny): Boolean = this == value
 }
 
