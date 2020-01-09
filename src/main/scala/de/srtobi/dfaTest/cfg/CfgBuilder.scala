@@ -12,7 +12,7 @@ class CfgBuilder {
   private val boundLabels = mutable.Set.empty[BuildLabel]
   private val usedLabels = mutable.Set.empty[Label]
   private var numLabelsToNextInstr = 0
-  private val stringLiteralCache = mutable.Map.empty[String, DfConcreteAnyRef]
+  private val stringLiteralCache = mutable.Map.empty[String, DfConcreteStringRef]
   private val variableCache = mutable.Map.empty[String, DfVariable]
 
   private def indexOfNextInstr: Int = instructions.length
@@ -70,7 +70,7 @@ class CfgBuilder {
 
   def pin(source: DfEntity): DfEntity = source match {
     case reg: DfRegister => reg
-    case value: DfValue => value
+    case value: DfConcreteAny => value
     case nonReg => pinToNewRegister(nonReg)
   }
 
@@ -134,10 +134,10 @@ class CfgBuilder {
     this
   }
 
-  def undefined: DfValue = DfValue.undefined
-  def boolean(value: Boolean): DfValue = DfValue.boolean(value)
-  def int(value: Int): DfValue = DfValue.int(value)
-  def string(value: String): DfValue = stringLiteralCache.getOrElseUpdate(value, new DfConcreteStringRef(value))
+  def undefined: DfUndefined.type = DfValue.undefined
+  def boolean(value: Boolean): DfConcreteBoolean = DfValue.boolean(value)
+  def int(value: Int): DfConcreteInt = DfValue.int(value)
+  def string(value: String): DfConcreteStringRef = stringLiteralCache.getOrElseUpdate(value, new DfConcreteStringRef(value))
 
   def bindLabel(label: BuildLabel): this.type = {
     if (label.isBound)

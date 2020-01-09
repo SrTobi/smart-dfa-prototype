@@ -2,10 +2,10 @@ package de.srtobi.dfaTest
 package dfa
 package impl
 
-case class ExecutionState(variables: Map[DfVariable, DfValue]) extends Unifiable {
+case class ExecutionState(variables: Map[DfVariable, DfAbstractValue]) extends Unifiable {
   override type UnifiableRoot = ExecutionState
 
-  def withStore(variable: DfVariable, value: DfValue): ExecutionState =
+  def withStore(variable: DfVariable, value: DfAbstractValue): ExecutionState =
     this.copy(variables = variables + (variable -> value))
 
 

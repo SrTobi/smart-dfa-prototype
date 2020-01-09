@@ -2,8 +2,6 @@ package de.srtobi.dfaTest
 package dfa
 package impl
 
-import de.srtobi.dfaTest.cfg.{Jump, JumpIfNot, New}
-
 import scala.collection.mutable
 
 class DataFlowAnalysisImpl extends DataFlowAnalysis {
@@ -21,9 +19,9 @@ class DataFlowAnalysisImpl extends DataFlowAnalysis {
   override def process(instruction: InstructionPtr, states: Iterable[State]): Seq[(InstructionPtr, State)] = {
     val state = states.reduce(_ unify _)
 
-    def load(entity: DfEntity): DfValue = entity match {
+    def load(entity: DfEntity): DfAbstractValue = entity match {
       case variable: DfVariable => state.variables.getOrElse(variable, DfUndefined)
-      case value: DfValue => value
+      case value: DfAbstractValue => value
     }
 
     val nextState = instruction match {
@@ -36,25 +34,26 @@ class DataFlowAnalysisImpl extends DataFlowAnalysis {
       case cfg.Mov(target, source) =>
         state.withStore(target, load(source))
 
-      case New(target) =>
+      case cfg.New(target) =>
         val ref = allocationSites.getOrElseUpdate(instruction, new DfConcreteObjectRef)
         state.withStore(target, ref)
 
-      case Jump(targetLabel) =>
+      case cfg.Jump(targetLabel) =>
         return Seq(targetLabel.target -> state)
 
-      case JumpIfNot(condition, targetLabel) =>
+      case cfg.JumpIfNot(condition, targetLabel) =>
         val result = load(condition)
         result match {
-          case value: DfAbstractValue =>
-            ???
           case DfFalse | DfUndefined | DfConcreteInt(0) =>
             return Seq(targetLabel.target -> state)
-          case _: DfConcreteValue =>
+
+          case _: DfConcreteAny =>
             state
+
+          case value: DfAbstractAny =>
+            ???
         }
     }
-
     Seq(instruction.nextInstruction -> nextState)
   }
 }

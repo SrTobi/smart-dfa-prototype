@@ -4,11 +4,11 @@ import de.srtobi.dfaTest.cfg.ControlFlowGraph
 
 import scala.collection.mutable
 
-class Interpreter(scriptCfg: ControlFlowGraph, stdLib: Seq[(String, DfConcreteValue)] = Interpreter.stdLib)(input: (String, DfConcreteValue)*) {
-  private var objects = mutable.Map.empty[DfConcreteObjectRef, mutable.Map[String, DfConcreteValue]]
+class Interpreter(scriptCfg: ControlFlowGraph, stdLib: Seq[(String, DfConcreteAny)] = Interpreter.stdLib)(input: (String, DfConcreteAny)*) {
+  private var objects = mutable.Map.empty[DfConcreteObjectRef, mutable.Map[String, DfConcreteAny]]
   private var curStackFrame = Option(new StackFrame(scriptCfg, mutable.Map.from(input), None, None))
 
-  def instantiateObject(props: (String, DfConcreteValue)*): DfConcreteObjectRef = {
+  def instantiateObject(props: (String, DfConcreteAny)*): DfConcreteObjectRef = {
     val ref = new DfConcreteObjectRef
     objects += ref -> mutable.Map.empty
     for ((prop, value) <- props) {
@@ -17,11 +17,11 @@ class Interpreter(scriptCfg: ControlFlowGraph, stdLib: Seq[(String, DfConcreteVa
     ref
   }
 
-  def writeObj(obj: DfConcreteObjectRef, prop: String)(value: DfConcreteValue): Unit = {
+  def writeObj(obj: DfConcreteObjectRef, prop: String)(value: DfConcreteAny): Unit = {
     objects(obj) += prop -> value
   }
 
-  def readObj(obj: DfConcreteObjectRef, prop: String): DfConcreteValue = {
+  def readObj(obj: DfConcreteObjectRef, prop: String): DfConcreteAny = {
     objects(obj)(prop)
   }
 
@@ -35,9 +35,9 @@ class Interpreter(scriptCfg: ControlFlowGraph, stdLib: Seq[(String, DfConcreteVa
     }
   }
 
-  private class StackFrame(funcCfg: ControlFlowGraph, vars: mutable.Map[String, DfConcreteValue],
+  private class StackFrame(funcCfg: ControlFlowGraph, vars: mutable.Map[String, DfConcreteAny],
                            parent: Option[StackFrame], returnTarget: Option[DfVariable]) {
-    private var registered = mutable.Map.empty[DfRegister, DfConcreteValue]
+    private var registered = mutable.Map.empty[DfRegister, DfConcreteAny]
     private var curInstrIndex = 0
 
     locally {
@@ -52,14 +52,13 @@ class Interpreter(scriptCfg: ControlFlowGraph, stdLib: Seq[(String, DfConcreteVa
       }
     }
 
-    private def load(entity: DfEntity): DfConcreteValue = entity match {
+    private def load(entity: DfEntity): DfConcreteAny = entity match {
       case reg: DfRegister => registered(reg)
       case DfLocalVariable(name) => vars.getOrElseUpdate(name, DfUndefined)
-      case value: DfConcreteValue => value
-      case _: DfAbstractValue => throw new Exception("Cannot load abstract value")
+      case value: DfConcreteAny => value
     }
 
-    private def store(target: DfVariable, value: DfConcreteValue): Unit = target match {
+    private def store(target: DfVariable, value: DfConcreteAny): Unit = target match {
       case reg: DfRegister => registered += reg -> value
       case variable: DfVariable => vars += variable.name -> value
     }
@@ -84,7 +83,7 @@ class Interpreter(scriptCfg: ControlFlowGraph, stdLib: Seq[(String, DfConcreteVa
       case cfg.BinaryOp(target, leftNode, op, rightNode) =>
         val left = load(leftNode)
         val right = load(rightNode)
-        def int(df: DfConcreteValue): Int = df match {
+        def int(df: DfConcreteAny): Int = df match {
           case DfConcreteInt(i) => i
           case _ => throw new Exception(s"Cannot convert $df into int")
         }
