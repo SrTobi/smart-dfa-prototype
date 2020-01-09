@@ -122,7 +122,7 @@ object Ret extends Instruction.Info(
 
 //*********************************** Call ***********************************//
 final class Call private[cfg](val target: Option[DfVariable],
-                              val funcEntity: DfVarOrValue,
+                              val func: DfVarOrValue,
                               val args: Seq[DfVarOrValue]) extends Instruction {
 
   override def sourceEntities: Seq[DfVarOrValue] = args
@@ -136,7 +136,7 @@ final class Call private[cfg](val target: Option[DfVariable],
     }
 
     builder.append("call [")
-    builder.append(funcEntity)
+    builder.append(func)
     builder.append("]")
 
     builder.append(args.mkString("(", ", ", ")"))
@@ -148,7 +148,7 @@ final class Call private[cfg](val target: Option[DfVariable],
 }
 
 object Call extends Instruction.Info("Call") {
-  def unapply(call: Call): Some[(Option[DfVariable], DfVarOrValue, Seq[DfVarOrValue])] = Some((call.target, call.funcEntity, call.args))
+  def unapply(call: Call): Some[(Option[DfVariable], DfVarOrValue, Seq[DfVarOrValue])] = Some((call.target, call.func, call.args))
 }
 
 

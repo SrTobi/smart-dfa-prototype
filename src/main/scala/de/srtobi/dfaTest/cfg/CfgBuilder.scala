@@ -57,13 +57,13 @@ class CfgBuilder {
   def assign(name: String, source: DfVarOrValue): this.type =
     mov(resolveVariable(name), source)
 
-  def pinToNewRegister(entity: DfVarOrValue): DfRegister = {
+  def pinToNewRegister(source: DfVarOrValue): DfRegister = {
     val reg = newRegister()
-    mov(reg, entity)
+    mov(reg, source)
     reg
   }
 
-  def pinToRegister(entity: DfVarOrValue): DfRegister = entity match {
+  def pinToRegister(source: DfVarOrValue): DfRegister = source match {
     case reg: DfRegister => reg
     case nonReg => pinToNewRegister(nonReg)
   }
@@ -82,9 +82,9 @@ class CfgBuilder {
     this
   }
 
-  def noop(entity: DfVarOrValue): this.type = {
-    if (!entity.isInstanceOf[DfRegister]) {
-      newInstr(new Noop(entity))
+  def noop(source: DfVarOrValue): this.type = {
+    if (!source.isInstanceOf[DfRegister]) {
+      newInstr(new Noop(source))
     }
     this
   }
@@ -99,8 +99,8 @@ class CfgBuilder {
     this
   }
 
-  def ret(entity: DfVarOrValue): this.type = {
-    newInstr(new Ret(entity))
+  def ret(source: DfVarOrValue): this.type = {
+    newInstr(new Ret(source))
     this
   }
 

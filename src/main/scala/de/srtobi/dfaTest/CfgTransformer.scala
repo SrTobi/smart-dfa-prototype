@@ -71,26 +71,26 @@ object CfgTransformer {
       }
       rreq.satisfy(obj)
 
-    case Ast.PropertyAccess(base, prop) =>
-      val baseEntity = transformExpr(base, RequireResult).get
+    case Ast.PropertyAccess(baseExpr, prop) =>
+      val base = transformExpr(baseExpr, RequireResult).get
       val (maybePin, result) = rreq.tryPin()
-      maybePin.foreach(builder.read(_, baseEntity, prop))
+      maybePin.foreach(builder.read(_, base, prop))
       result
 
-    case Ast.Call(func, args) =>
-      val funcEntity = transformExpr(func, RequireResult)
+    case Ast.Call(funcExpr, args) =>
+      val func = transformExpr(funcExpr, RequireResult)
       val argEntities = args.map(transformExpr(_, RequireResult).get)
       val (maybeRet, result) = rreq.tryPin()
-      builder.call(maybeRet, funcEntity, argEntities)
+      builder.call(maybeRet, func, argEntities)
       result
 
     case f@Ast.Function(paramNames, block) =>
       val subBuilder = builder.createSubBuilder()
-      val paramEntity = paramNames.map(builder.resolveVariable).map(new DfConcreteLambdaRef.Parameter(_))
+      val params = paramNames.map(builder.resolveVariable).map(new DfConcreteLambdaRef.Parameter(_))
       buildStatements(block)(subBuilder)
       subBuilder.end()
       val cfg = subBuilder.build()
-      val lambda = new DfConcreteLambdaRef(f, paramEntity, cfg)
+      val lambda = new DfConcreteLambdaRef(f, params, cfg)
       rreq.satisfy(lambda)
 
     case Ast.Operator(op, leftExpr, rightExpr) =>
@@ -118,8 +118,8 @@ object CfgTransformer {
       val endLabel = builder.createLabel("endIf")
       val elseLabel = if (hasElse) builder.createLabel("else") else endLabel
 
-      val condEntity = transformExpr(condExpr, RequireResult)
-      builder.jumpIfFalse(condEntity, elseLabel)
+      val cond = transformExpr(condExpr, RequireResult)
+      builder.jumpIfFalse(cond, elseLabel)
       buildStatements(thenExpr)
       if (hasElse) {
         builder.jumpTo(endLabel)
@@ -134,10 +134,10 @@ object CfgTransformer {
       builder.ret(result.get)
 
     case Ast.AssignmentStmt(Ast.PropertyAccess(baseExpr, property), expr) =>
-      val baseEntity = transformExpr(baseExpr, RequireResult).get
+      val base = transformExpr(baseExpr, RequireResult).get
       val entity = transformExpr(expr, RequireResult).get
 
-      builder.write(baseEntity, property, entity)
+      builder.write(base, property, entity)
 
     case Ast.AssignmentStmt(Ast.Identifier(variable), expr) =>
       transformExpr(expr, RequireResult(builder.resolveVariable(variable)))

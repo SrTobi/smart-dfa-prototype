@@ -10,11 +10,11 @@ abstract class ExprResult {
 }
 
 object ExprResult {
-  implicit def ResultToEntity(result: ExprResult): DfVarOrValue = result.get
+  implicit def ResultTo(result: ExprResult): DfVarOrValue = result.get
 }
 
 abstract class ResultRequirement {
-  def satisfy(entity: DfVarOrValue, noop: Boolean = false)(implicit builder: CfgBuilder): ExprResult
+  def satisfy(result: DfVarOrValue, noop: Boolean = false)(implicit builder: CfgBuilder): ExprResult
   def satisfyUndefined(noop: Boolean = false)(implicit builder: CfgBuilder): ExprResult = satisfy(builder.undefined, noop)
   def satisfyNothing(noop: Boolean = false)(implicit builder: CfgBuilder): ExprResult = satisfy(builder.undefined, noop)
 
@@ -32,9 +32,9 @@ case object RequireNoResult extends ResultRequirement {
       throw new UnsupportedOperationException("Cannot get result. No result was requested")
   }
 
-  override def satisfy(entity: DfVarOrValue, noop: Boolean = true)(implicit builder: CfgBuilder): ExprResult = {
+  override def satisfy(result: DfVarOrValue, noop: Boolean = true)(implicit builder: CfgBuilder): ExprResult = {
     if (noop) {
-      builder.noop(entity)
+      builder.noop(result)
     }
     NoResult
   }
@@ -58,8 +58,8 @@ final class RequireResultToProvidedSink(sink: DfVariable) extends ResultRequirem
     override def get: DfVarOrValue = sink
   }
 
-  override def satisfy(entity: DfVarOrValue, noop: Boolean)(implicit builder: CfgBuilder): ExprResult = {
-    builder.mov(sink, entity)
+  override def satisfy(result: DfVarOrValue, noop: Boolean)(implicit builder: CfgBuilder): ExprResult = {
+    builder.mov(sink, result)
     SinkResult
   }
 
@@ -79,8 +79,8 @@ final class RequireResultToProvidedSink(sink: DfVariable) extends ResultRequirem
 
 sealed class RequireDirectResult extends ResultRequirement {
   import RequireDirectResult._
-  override def satisfy(entity: DfVarOrValue, noop: Boolean)(implicit builder: CfgBuilder): ExprResult = {
-    DirectResult(entity)
+  override def satisfy(result: DfVarOrValue, noop: Boolean)(implicit builder: CfgBuilder): ExprResult = {
+    DirectResult(result)
   }
 
   override def pin()(implicit builder: CfgBuilder): (DfVariable, ExprResult) = {
