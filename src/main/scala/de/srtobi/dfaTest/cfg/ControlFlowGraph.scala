@@ -2,7 +2,7 @@ package de.srtobi.dfaTest.cfg
 
 import de.srtobi.dfaTest.{DfConcreteLambdaRef, cfg}
 
-class ControlFlowGraph private (val instructions: Array[cfg.Instruction], val lambdas: Seq[DfConcreteLambdaRef]) {
+class ControlFlowGraph private (val instructions: Array[cfg.Instruction], val lambdas: Array[DfConcreteLambdaRef]) {
   assert(instructions.length > 0)
 
   def instructionCount: Int = instructions.length

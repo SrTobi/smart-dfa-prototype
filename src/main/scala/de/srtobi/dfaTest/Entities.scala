@@ -3,8 +3,7 @@ package de.srtobi.dfaTest
 import de.srtobi.dfaTest.cfg.ControlFlowGraph
 
 
-sealed abstract class DfEntity {
-}
+sealed abstract class DfEntity
 
 sealed abstract class DfVariable extends DfEntity {
   def name: String
@@ -40,7 +39,7 @@ sealed abstract class DfConcreteAnyRef extends DfConcreteValue
 class DfConcreteObjectRef extends DfConcreteAnyRef
 
 class DfConcreteStringRef(value: String) extends DfConcreteAnyRef {
-  override def toString: String = '\"' + value + '\"'
+  override def toString: String = "\"%s\"".format(value)
 }
 
 class DfConcreteLambdaRef(val lambda: Ast.Function,
@@ -63,38 +62,44 @@ object DfConcreteLambdaRef {
 }
 
 sealed abstract class DfConcreteAnyVal extends DfConcreteValue {
-  def value: AnyVal
+  type Type <: AnyVal
+  def value: Type
 }
 
 case object DfUndefined extends DfConcreteAnyVal {
-  def value: Unit = ()
+  override type Type = Unit
+  override def value: Type = ()
 
   override def toString: String = "undefined"
 }
 
 sealed abstract class DfConcreteBoolean extends DfConcreteAnyVal {
-  override def value: Boolean
+  override type Type <: Boolean
+  override def value: Type
 }
 
 object DfConcreteBoolean {
   def apply(value: Boolean): DfConcreteBoolean =
     if (value) DfTrue else DfFalse
+
+  def unapply(arg: DfConcreteBoolean): Option[Boolean] = Some(arg.value)
 }
 
 case object DfTrue extends DfConcreteBoolean {
-  override def value: Boolean = true
+  override type Type = true
+  override def value: Type = true
 
   override def toString: String = "true"
 }
 
 case object DfFalse extends DfConcreteBoolean {
-  override def value: Boolean = false
+  override type Type = false
+  override def value: Type = false
 
   override def toString: String = "false"
 }
 
-sealed abstract class DfConcreteIntegral extends DfConcreteAnyVal
-
-case class DfConcreteInt(override val value: Int) extends DfConcreteIntegral {
+case class DfConcreteInt(override val value: Int) extends DfConcreteAnyVal {
+  override type Type = Int
   override def toString: String = value.toString
 }

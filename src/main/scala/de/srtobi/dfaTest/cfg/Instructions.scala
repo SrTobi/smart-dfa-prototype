@@ -27,6 +27,11 @@ sealed abstract class Instruction {
     _labels
   }
 
+  def nextInstruction: Instruction = {
+    assert(info.hasControlFlowAfter)
+    graph.instructionAt(index + 1)
+  }
+
   def sourceEntities: Seq[DfEntity]
   def variables: Seq[DfVariable]
   def entities: Seq[DfEntity] = sourceEntities ++ variables
@@ -55,8 +60,8 @@ object Instruction {
   }
 
   def asmAssignmentPrefix(v: DfVariable): String = v match {
-    case reg: DfRegister => reg + " <- "
-    case variable => variable + " = "
+    case reg: DfRegister => reg.toString + " <- "
+    case variable => variable.toString + " = "
   }
 }
 
@@ -122,7 +127,6 @@ final class Call private[cfg](val target: Option[DfVariable],
                         val funcEntity: DfEntity,
                         val args: Seq[DfEntity]) extends Instruction {
 
-
   override def sourceEntities: Seq[DfEntity] = args
   override def variables: Seq[DfVariable] = target.toSeq
 
@@ -152,12 +156,9 @@ object Call extends Instruction.Info("Call") {
 
 //*********************************** BinaryOp ***********************************//
 final class BinaryOp private[cfg](val target: DfVariable, val left: DfEntity, val op: String, val right: DfEntity) extends Instruction {
-
   override def sourceEntities: Seq[DfEntity] = Seq(left, right)
   override def variables: Seq[DfVariable] = Seq(target)
-
   override def asmString: String = Instruction.asmAssignmentPrefix(target) + s"$left $op $right"
-
   override def info: Instruction.Info = BinaryOp
 }
 
@@ -173,7 +174,6 @@ object BinaryOp extends Instruction.Info("BinaryOp") {
  * @param targetLabel to the instruction where the control flow should be continued
  */
 final class Jump private[cfg](override val targetLabel: Label) extends JumpingInstruction {
-
   override def sourceEntities: Seq[DfEntity] = Seq.empty
   override def variables: Seq[DfVariable] = Seq.empty
   override def asmString: String = s"jmp $targetLabel"
@@ -208,12 +208,9 @@ object JumpIfNot extends Instruction.Info(
 
 //*********************************** Mov ***********************************//
 final class Mov private[cfg](val target: DfVariable, val source: DfEntity) extends Instruction {
-
   override def sourceEntities: Seq[DfEntity] = Seq(source)
   override def variables: Seq[DfVariable] = Seq(target)
-
   override def asmString: String = Instruction.asmAssignmentPrefix(target) + source
-
   override def info: Instruction.Info = Mov
 }
 
@@ -226,9 +223,7 @@ object Mov extends Instruction.Info("Mov") {
 final class New private[cfg](val target: DfVariable) extends Instruction {
   override def sourceEntities: Seq[DfEntity] = Seq.empty
   override def variables: Seq[DfVariable] = Seq(target)
-
   override def asmString: String = Instruction.asmAssignmentPrefix(target) + s"new"
-
   override def info: Instruction.Info = New
 }
 
@@ -239,7 +234,6 @@ object New extends Instruction.Info("New") {
 
 //*********************************** ReadProp ***********************************//
 final class ReadProp private[cfg](val target: DfVariable, val base: DfEntity, val member: String) extends Instruction {
-
   override def sourceEntities: Seq[DfEntity] = Seq()
   override def variables: Seq[DfVariable] = Seq(target)
   override def asmString: String = s"$target <- [$base].$member"
@@ -253,7 +247,6 @@ object ReadProp extends Instruction.Info("ReadProp") {
 
 //*********************************** WriteProp ***********************************//
 final class WriteProp private[cfg](val base: DfEntity, val member: String, val value: DfEntity) extends Instruction {
-
   override def sourceEntities: Seq[DfEntity] = Seq(value)
   override def variables: Seq[DfVariable] = Seq()
   override def asmString: String = s"[$base].$member = $value"
