@@ -2,6 +2,8 @@ package de.srtobi.dfaTest
 
 import fastparse.Parsed
 
+import scala.annotation.tailrec
+
 
 object Ast {
 
@@ -131,11 +133,40 @@ object LangParser {
     primaryExpression.flatMapX(makeInner)
   )
 
+  private val precedence = Map(
+    "+" -> 5,
+    "-" -> 5,
+    "==" -> 1,
+    "!=" -> 1
+  )
+
+  @tailrec
+  private def precedenceClimbDown(minPrec: Int, lhs: Ast.Expression, right: Seq[(String, Ast.Expression)]): (Ast.Expression, Seq[(String, Ast.Expression)]) = {
+    if (right.isEmpty) return lhs -> right
+    val (lookAheadOp, _) +: _ = right
+    val prec = precedence(lookAheadOp)
+    if (prec > minPrec) {
+      val (rhs2, rest2) = precedenceClimbUp(prec, lhs, right)
+      precedenceClimbDown(minPrec, rhs2, rest2)
+    } else lhs -> right
+  }
+
+  @tailrec
+  private def precedenceClimbUp(minPrec: Int, lhs: Ast.Expression, right: Seq[(String, Ast.Expression)]): (Ast.Expression, Seq[(String, Ast.Expression)]) = {
+    if (right.isEmpty) return lhs -> right
+    val (op, rhs) +: rest = right
+    val prec = precedence(op)
+    if (prec >= minPrec) {
+      val (rhs2, rest2) = precedenceClimbDown(prec, rhs, rest)
+      precedenceClimbUp(minPrec, Ast.Operator(op, lhs, rhs2), rest2)
+    } else lhs -> right
+  }
+
   def expression[_: P]: P[Ast.Expression] = P(
     (innerExpression ~~ (Pass ~ ("+" | "-" | "==" | "!=").! ~ innerExpression).repX).map {
-      case (first, tail) => tail.foldLeft(first){
-        case (left, (op, right)) => Ast.Operator(op, left, right)
-      }
+      case (first, tail) =>
+        val (result, Seq()) = precedenceClimbUp(0, first, tail)
+        result
     }
   )
 
