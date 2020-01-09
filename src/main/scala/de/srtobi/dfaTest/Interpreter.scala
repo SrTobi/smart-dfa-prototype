@@ -139,7 +139,7 @@ class Interpreter(scriptCfg: ControlFlowGraph, stdLib: Seq[(String, DfConcreteVa
           curStackFrame = Some(parent)
         }
 
-      case cfg.End() =>
+      case _: cfg.End =>
         if (parent.isDefined) throw new Exception("Cannot end in lambda")
         curStackFrame = None
 

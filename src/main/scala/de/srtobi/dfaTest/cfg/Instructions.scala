@@ -73,7 +73,7 @@ sealed abstract class JumpingInstruction extends Instruction {
 
 object JumpingInstruction {
   object to {
-    def unapply(jumpingInstruction: JumpingInstruction): Option[Label] = Some(jumpingInstruction.targetLabel)
+    def unapply(jumpingInstruction: JumpingInstruction): Some[Label] = Some(jumpingInstruction.targetLabel)
   }
 }
 
@@ -89,9 +89,7 @@ final class End private[cfg] extends Instruction {
 object End extends Instruction.Info(
   name = "End",
   hasControlFlowAfter = false
-) {
-  def unapply(end: End): Boolean = true
-}
+)
 
 
 //*********************************** Noop ***********************************//
@@ -103,7 +101,7 @@ final class Noop private[cfg](val value: DfEntity) extends Instruction {
 }
 
 object Noop extends Instruction.Info("Noop") {
-  def unapply(noop: Noop): Option[DfEntity] = Some(noop.value)
+  def unapply(noop: Noop): Some[DfEntity] = Some(noop.value)
 }
 
 
@@ -119,13 +117,13 @@ object Ret extends Instruction.Info(
   name = "Ret",
   hasControlFlowAfter = false
 ) {
-  def unapply(ret: Ret): Option[DfEntity] = Some(ret.returnValue)
+  def unapply(ret: Ret): Some[DfEntity] = Some(ret.returnValue)
 }
 
 //*********************************** Call ***********************************//
 final class Call private[cfg](val target: Option[DfVariable],
-                        val funcEntity: DfEntity,
-                        val args: Seq[DfEntity]) extends Instruction {
+                              val funcEntity: DfEntity,
+                              val args: Seq[DfEntity]) extends Instruction {
 
   override def sourceEntities: Seq[DfEntity] = args
   override def variables: Seq[DfVariable] = target.toSeq
@@ -150,7 +148,7 @@ final class Call private[cfg](val target: Option[DfVariable],
 }
 
 object Call extends Instruction.Info("Call") {
-  def unapply(call: Call): Option[(Option[DfVariable], DfEntity, Seq[DfEntity])] = Some((call.target, call.funcEntity, call.args))
+  def unapply(call: Call): Some[(Option[DfVariable], DfEntity, Seq[DfEntity])] = Some((call.target, call.funcEntity, call.args))
 }
 
 
@@ -163,7 +161,7 @@ final class BinaryOp private[cfg](val target: DfVariable, val left: DfEntity, va
 }
 
 object BinaryOp extends Instruction.Info("BinaryOp") {
-  def unapply(binaryOp: BinaryOp): Option[(DfVariable, DfEntity, String, DfEntity)] = Some((binaryOp.target, binaryOp.left, binaryOp.op, binaryOp.right))
+  def unapply(binaryOp: BinaryOp): Some[(DfVariable, DfEntity, String, DfEntity)] = Some((binaryOp.target, binaryOp.left, binaryOp.op, binaryOp.right))
 }
 
 
@@ -185,7 +183,7 @@ object Jump extends Instruction.Info(
   hasControlFlowAfter = false,
   isJump = true
 ) {
-  def unapply(jump: Jump): Option[Label] = Some(jump.targetLabel)
+  def unapply(jump: Jump): Some[Label] = Some(jump.targetLabel)
 }
 
 
@@ -202,7 +200,7 @@ object JumpIfNot extends Instruction.Info(
   hasControlFlowAfter = true,
   isJump = true
 ) {
-  def unapply(jumpIfNot: JumpIfNot): Option[(DfEntity, Label)] = Some((jumpIfNot.condition, jumpIfNot.targetLabel))
+  def unapply(jumpIfNot: JumpIfNot): Some[(DfEntity, Label)] = Some((jumpIfNot.condition, jumpIfNot.targetLabel))
 }
 
 
@@ -215,7 +213,7 @@ final class Mov private[cfg](val target: DfVariable, val source: DfEntity) exten
 }
 
 object Mov extends Instruction.Info("Mov") {
-  def unapply(mov: Mov): Option[(DfVariable, DfEntity)] = Some((mov.target, mov.source))
+  def unapply(mov: Mov): Some[(DfVariable, DfEntity)] = Some((mov.target, mov.source))
 }
 
 
@@ -228,7 +226,7 @@ final class New private[cfg](val target: DfVariable) extends Instruction {
 }
 
 object New extends Instruction.Info("New") {
-  def unapply(n: New): Option[DfVariable] = Some(n.target)
+  def unapply(n: New): Some[DfVariable] = Some(n.target)
 }
 
 
@@ -241,7 +239,7 @@ final class ReadProp private[cfg](val target: DfVariable, val base: DfEntity, va
 }
 
 object ReadProp extends Instruction.Info("ReadProp") {
-  def unapply(readProp: ReadProp): Option[(DfVariable, DfEntity, String)] = Some((readProp.target, readProp.base, readProp.member))
+  def unapply(readProp: ReadProp): Some[(DfVariable, DfEntity, String)] = Some((readProp.target, readProp.base, readProp.member))
 }
 
 
@@ -254,7 +252,7 @@ final class WriteProp private[cfg](val base: DfEntity, val member: String, val v
 }
 
 object WriteProp extends Instruction.Info("WriteProp") {
-  def unapply(writeProp: WriteProp): Option[(DfEntity, String, DfEntity)] = Some((writeProp.base, writeProp.member, writeProp.value))
+  def unapply(writeProp: WriteProp): Some[(DfEntity, String, DfEntity)] = Some((writeProp.base, writeProp.member, writeProp.value))
 }
 
 
@@ -267,7 +265,7 @@ final class Debug private[cfg](val checks: Seq[Debug.Check]) extends Instruction
 }
 
 object Debug extends Instruction.Info("Debug") {
-  def unapply(debug: Debug): Option[Seq[Check]] = Some(debug.checks)
+  def unapply(debug: Debug): Some[Seq[Check]] = Some(debug.checks)
 
   sealed abstract class Check
   case object CheckDeadCode extends Check {

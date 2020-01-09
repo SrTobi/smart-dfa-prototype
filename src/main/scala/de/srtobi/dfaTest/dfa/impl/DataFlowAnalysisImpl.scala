@@ -30,7 +30,7 @@ class DataFlowAnalysisImpl extends DataFlowAnalysis {
       case cfg.Noop(_) =>
         state
 
-      case cfg.End() =>
+      case _: cfg.End =>
         return Seq.empty
 
       case cfg.Mov(target, source) =>
