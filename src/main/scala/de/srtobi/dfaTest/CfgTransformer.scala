@@ -10,6 +10,42 @@ object CfgTransformer {
     builder.build()
   }
 
+  object DebugExpr {
+    val debugIdentifier: Ast.Identifier = Ast.Identifier("debug")
+
+    def unapply(expr: Ast.Expression): Option[Seq[CfgBuilder => Debug.Check]] = Option(expr match {
+      case Ast.Call(Ast.PropertyAccess(`debugIdentifier`, "print"), args) =>
+        args.map(expr => (cfgBuilder: CfgBuilder) => {
+          val result = transformExpr(expr, RequireResult)(cfgBuilder).get
+          Debug.Print(result, LangPrinter.print(expr))
+        })
+
+      case Ast.Call(Ast.PropertyAccess(`debugIdentifier`, "liveCode"), args) =>
+        if (args.nonEmpty)
+          throw new Exception("debug.liveCode() cannot take arguments.")
+
+        Seq(_ => Debug.CheckLiveCode)
+
+      case Ast.Call(Ast.PropertyAccess(`debugIdentifier`, "deadCode"), args) =>
+        if (args.nonEmpty)
+          throw new Exception("debug.deadCode() cannot take arguments.")
+
+        Seq(_ => Debug.CheckDeadCode)
+
+      case Ast.Call(`debugIdentifier`, args) =>
+        args.map(expr => (cfgBuilder: CfgBuilder) => expr match {
+          case Ast.Operator(LangParser.debugIsOperator, lhsExpr, rhsExpr) =>
+            val lhs = transformExpr(lhsExpr, RequireResult)(cfgBuilder).get
+            val rhs = transformExpr(rhsExpr, RequireResult)(cfgBuilder).get
+            Debug.Is(lhs, rhs, LangPrinter.print(expr))
+          case _ =>
+            throw new Exception("")
+        })
+      case _ =>
+        null
+    })
+  }
+
   def transformExpr(expr: Ast.Expression, rreq: ResultRequirement)(implicit builder: CfgBuilder): ExprResult = expr match {
     case Ast.UndefinedLiteral =>
       rreq.satisfyUndefined(noop = true)
@@ -58,6 +94,9 @@ object CfgTransformer {
       rreq.satisfy(lambda)
 
     case Ast.Operator(op, leftExpr, rightExpr) =>
+      if (op == LangParser.debugIsOperator) {
+        throw new Exception("Cannot use 'is' operator in exception")
+      }
       val left = transformExpr(leftExpr, RequireResult)
       val right = transformExpr(rightExpr, RequireResult)
       val (maybeRet, result) = rreq.tryPin()
@@ -67,6 +106,10 @@ object CfgTransformer {
   }
 
   def transformStatement(statement: Ast.Statement)(implicit builder: CfgBuilder): Unit = statement match {
+    case Ast.ExpressionStmt(DebugExpr(checkFs)) =>
+      val checks = checkFs.map(f => f(builder))
+      builder.debug(checks)
+
     case Ast.ExpressionStmt(expr) =>
       transformExpr(expr, RequireNoResult)
 
@@ -125,6 +168,8 @@ object CfgTransformer {
         |}
         |
         |x() + 1 + y.e.x()()
+        |
+        |debug.print(x)
         |
         |if (test) {
         |  x = {

@@ -133,11 +133,14 @@ object LangParser {
     primaryExpression.flatMapX(makeInner)
   )
 
+  val debugIsOperator: String = "is"
+
   private val precedence = Map(
     "+" -> 5,
     "-" -> 5,
     "==" -> 1,
-    "!=" -> 1
+    "!=" -> 1,
+    debugIsOperator -> 0,
   )
 
   @tailrec
@@ -163,7 +166,7 @@ object LangParser {
   }
 
   def expression[_: P]: P[Ast.Expression] = P(
-    (innerExpression ~~ (Pass ~ ("+" | "-" | "==" | "!=").! ~ innerExpression).repX).map {
+    (innerExpression ~~ (Pass ~ ("+" | "-" | "==" | "!=" | debugIsOperator).! ~ innerExpression).repX).map {
       case (first, tail) =>
         val (result, Seq()) = precedenceClimbUp(0, first, tail)
         result

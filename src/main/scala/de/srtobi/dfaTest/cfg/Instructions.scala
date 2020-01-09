@@ -190,7 +190,7 @@ object Jump extends Instruction.Info(
 
 
 //*********************************** JumpIfNot ***********************************//
-final class JumpIfNot private[cfg](val condition: DfEntity, val targetLabel: Label) extends JumpingInstruction {
+final class JumpIfNot private[cfg](val condition: DfEntity, override val targetLabel: Label) extends JumpingInstruction {
   override def sourceEntities: Seq[DfEntity] = Seq(condition)
   override def variables: Seq[DfVariable] = Seq.empty
   override def asmString: String = s"ifNot $condition -> $targetLabel"
@@ -255,4 +255,31 @@ final class WriteProp private[cfg](val base: DfEntity, val member: String, val v
 
 object WriteProp extends Instruction.Info("WriteProp") {
   def unapply(writeProp: WriteProp): Option[(DfEntity, String, DfEntity)] = Some((writeProp.base, writeProp.member, writeProp.value))
+}
+
+
+//*********************************** Debug ***********************************//
+final class Debug private[cfg](val checks: Seq[Debug.Check]) extends Instruction {
+  override def sourceEntities: Seq[DfEntity] = Seq()
+  override def variables: Seq[DfVariable] = Seq()
+  override def asmString: String = s"debug [${checks.mkString(", ")}]"
+  override def info: Instruction.Info = Debug
+}
+
+object Debug extends Instruction.Info("Debug") {
+  def unapply(debug: Debug): Option[Seq[Check]] = Some(debug.checks)
+
+  sealed abstract class Check
+  case object CheckDeadCode extends Check {
+    override def toString: String = "dead"
+  }
+  case object CheckLiveCode extends Check {
+    override def toString: String = "live"
+  }
+  case class Is(actual: DfEntity, expected: DfEntity, exprText: String) extends Check {
+    override def toString: String = s"$actual is $expected"
+  }
+  case class Print(entity: DfEntity, exprText: String) extends Check {
+    override def toString: String = s"print $entity"
+  }
 }

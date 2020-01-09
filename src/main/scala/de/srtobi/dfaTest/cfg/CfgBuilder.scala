@@ -129,6 +129,11 @@ class CfgBuilder {
     this
   }
 
+  def debug(checks: Seq[Debug.Check]): this.type = {
+    newInstr(new Debug(checks))
+    this
+  }
+
   def undefined: DfValue = DfValue.undefined
   def boolean(value: Boolean): DfValue = DfValue.boolean(value)
   def int(value: Int): DfValue = DfValue.int(value)
