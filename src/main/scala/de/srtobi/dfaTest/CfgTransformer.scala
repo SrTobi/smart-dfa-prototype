@@ -95,7 +95,7 @@ object CfgTransformer {
 
     case Ast.Operator(op, leftExpr, rightExpr) =>
       if (op == LangParser.debugIsOperator) {
-        throw new Exception("Cannot use 'is' operator in exception")
+        throw new Exception("Cannot use 'is' operator in expression outside of debug(...)")
       }
       val left = transformExpr(leftExpr, RequireResult)
       val right = transformExpr(rightExpr, RequireResult)

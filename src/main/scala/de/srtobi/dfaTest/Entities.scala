@@ -75,12 +75,14 @@ case object DfUndefined extends DfConcreteAnyVal {
 
 sealed trait DfAbstractBoolean extends DfAbstractAny {
   def unify(other: DfAbstractBoolean): DfAbstractBoolean
+  def couldBe(bool: Boolean): Boolean
   def negative: DfAbstractBoolean
 }
 
 case object DfBoolean extends DfAbstractBoolean {
   override def canBeAllOf(value: DfAbstractAny): Boolean = value.isInstanceOf[DfAbstractBoolean]
   override def unify(other: DfAbstractBoolean): DfBoolean.type = DfBoolean
+  override def couldBe(bool: Boolean): Boolean = true
   override def negative: DfBoolean.type = DfBoolean
 }
 
@@ -104,6 +106,7 @@ case object DfTrue extends DfConcreteBoolean {
     case DfTrue => DfTrue
     case _ => DfBoolean
   }
+  override def couldBe(bool: Boolean): Boolean = bool
   override def negative: DfFalse.type = DfFalse
 
   override def toString: String = "true"
@@ -117,6 +120,7 @@ case object DfFalse extends DfConcreteBoolean {
     case DfFalse => DfFalse
     case _ => DfBoolean
   }
+  override def couldBe(bool: Boolean): Boolean = !bool
   override def negative: DfTrue.type = DfTrue
 
   override def toString: String = "false"
