@@ -1,6 +1,7 @@
 package de.srtobi.dfaTest
 
 import de.srtobi.dfaTest.cfg._
+import de.srtobi.dfaTest.dfa.{DfConcreteLambdaRef, DfVarOrValue}
 
 object CfgTransformer {
   def transformScript(script: Ast.Script): ControlFlowGraph = {

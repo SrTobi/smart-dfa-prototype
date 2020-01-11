@@ -1,6 +1,7 @@
 package de.srtobi.dfaTest.cfg
 
-import de.srtobi.dfaTest.{DfConcreteLambdaRef, cfg}
+import de.srtobi.dfaTest.cfg
+import de.srtobi.dfaTest.dfa.DfConcreteLambdaRef
 
 class ControlFlowGraph private (val instructions: Array[cfg.Instruction], val lambdas: Array[DfConcreteLambdaRef]) {
   assert(instructions.length > 0)

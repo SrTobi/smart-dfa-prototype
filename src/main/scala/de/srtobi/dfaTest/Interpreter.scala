@@ -1,6 +1,7 @@
 package de.srtobi.dfaTest
 
 import de.srtobi.dfaTest.cfg.ControlFlowGraph
+import de.srtobi.dfaTest.dfa._
 
 import scala.collection.mutable
 

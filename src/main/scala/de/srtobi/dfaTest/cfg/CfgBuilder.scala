@@ -2,6 +2,7 @@ package de.srtobi.dfaTest
 package cfg
 
 import de.srtobi.dfaTest.cfg.CfgBuilder._
+import de.srtobi.dfaTest.dfa._
 
 import scala.collection.mutable
 

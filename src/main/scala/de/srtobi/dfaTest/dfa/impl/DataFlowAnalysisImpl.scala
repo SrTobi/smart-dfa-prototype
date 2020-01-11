@@ -19,9 +19,9 @@ class DataFlowAnalysisImpl extends DataFlowAnalysis {
   override def process(instruction: InstructionPtr, states: Iterable[State]): Seq[(InstructionPtr, State)] = {
     val state = states.reduce(_ unify _)
 
-    def load(entity: DfVarOrValue): DfAbstractValue = entity match {
+    def load(entity: DfVarOrValue): DfValue = entity match {
       case variable: DfVariable => state.variables.getOrElse(variable, DfUndefined)
-      case value: DfAbstractValue => value
+      case value: DfConcreteAny => value
     }
 
     val nextState = instruction match {

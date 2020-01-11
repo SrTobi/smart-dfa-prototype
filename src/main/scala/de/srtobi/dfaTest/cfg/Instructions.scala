@@ -1,6 +1,8 @@
 package de.srtobi.dfaTest
 package cfg
 
+import de.srtobi.dfaTest.dfa.{DfRegister, DfVarOrValue, DfVariable}
+
 sealed abstract class Instruction {
   private var _index: Int = -1
   private var _graph: ControlFlowGraph = _

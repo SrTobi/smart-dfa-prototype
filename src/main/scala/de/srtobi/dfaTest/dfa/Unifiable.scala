@@ -1,8 +1,10 @@
 package de.srtobi.dfaTest.dfa
 
-trait Unifiable {
-  type UnifiableRoot
+trait Unifiable[T] {
+  def unify(entities: IterableOnce[T]): T
+}
 
-  def unify(first: UnifiableRoot, rest: UnifiableRoot*): UnifiableRoot = unify(first +: rest)
-  def unify(entities: IterableOnce[UnifiableRoot]): UnifiableRoot
+object Unifiable {
+  def unify[T: Unifiable](first: T, rest: T*): T = unify(first +: rest)
+  def unify[T: Unifiable](entities: IterableOnce[T]): T = implicitly[Unifiable[T]].unify(entities)
 }

@@ -1,5 +1,6 @@
-package de.srtobi.dfaTest
+package de.srtobi.dfaTest.dfa
 
+import de.srtobi.dfaTest.Ast
 import de.srtobi.dfaTest.cfg.ControlFlowGraph
 
 
@@ -18,12 +19,34 @@ class DfRegister(val id: Int) extends DfVariable {
 case class DfLocalVariable(override val name: String) extends DfVariable
 
 
-sealed trait DfAbstractValue
+sealed trait DfValue[+AnalysisEntity] {
+  type Context
+  def normalize(normalizer: Context): DfAbstractAny
+}
 
-abstract class DfInternalAbstractValue extends DfAbstractValue
+trait DfExternalEntity {
+  type Context
+  def normalize(context: Context): DfAbstractAny
+}
 
-sealed trait DfAbstractAny extends DfAbstractValue {
+final case class DfExternalValue[+ExternalEntity <: DfExternalEntity](entity: ExternalEntity) extends DfValue[ExternalEntity] {
+  override type Context = entity.Context
+
+  override def normalize(context: Context): DfAbstractAny = entity.normalize(context)
+}
+
+sealed trait DfAbstractAny extends DfValue[Nothing] {
+  final override type Context = Any
+  final override def normalize(context: Any): this.type = this
+
+
+
   def canBeAllOf(value: DfAbstractAny): Boolean
+}
+
+object DfAbstractAny {
+  implicit val unifiable: Unifiable[DfAbstractAny] =
+    (entities: IterableOnce[DfAbstractAny]) => DfValue.unify(entities)
 }
 
 case object DfAny extends DfAbstractAny {
@@ -77,6 +100,18 @@ sealed trait DfAbstractBoolean extends DfAbstractAny {
   def unify(other: DfAbstractBoolean): DfAbstractBoolean
   def couldBe(bool: Boolean): Boolean
   def negative: DfAbstractBoolean
+}
+
+object DfAbstractBoolean {
+  implicit val unifiable: Unifiable[DfAbstractBoolean] =
+    (entities: IterableOnce[DfAbstractBoolean]) => {
+      val it = entities.iterator
+      var acc = it.next()
+      while (it.hasNext && acc != DfBoolean) {
+        acc = acc unify it.next()
+      }
+      acc
+    }
 }
 
 case object DfBoolean extends DfAbstractBoolean {
@@ -135,7 +170,7 @@ case object DfInt extends DfAbstractInt {
   override def unify(other: DfAbstractInt): DfInt.type = DfInt
 }
 
-case class DfConcreteInt(override val value: Int) extends DfConcreteAnyVal with DfAbstractInt {
+final case class DfConcreteInt(override val value: Int) extends DfConcreteAnyVal with DfAbstractInt {
   override type Type = Int
   override def toString: String = value.toString
   override def unify(other: DfAbstractInt): DfAbstractInt = other match {
