@@ -1,7 +1,7 @@
 package de.srtobi.dfaTest
 package cfg
 
-import de.srtobi.dfaTest.dfa.{DfRegister, DfVarOrValue, DfVariable}
+import de.srtobi.dfaTest.dfa._
 
 sealed abstract class Instruction {
   private var _index: Int = -1
@@ -276,7 +276,41 @@ object Debug extends Instruction.Info("Debug") {
   case object CheckLiveCode extends Check {
     override def toString: String = "live"
   }
-  case class Is(actual: DfVarOrValue, expected: DfVarOrValue, exprText: String) extends Check {
+
+  sealed trait Expectation
+  object Expectation {
+    case class VarOrValue(varOrValue: DfVarOrValue) extends Expectation {
+      override def toString: String = varOrValue.toString
+    }
+    case class Value(value: DfAbstractAny) extends Expectation {
+      override def toString: String = value.toString
+    }
+    case class SubclassOf(clazz: Class[_ <: DfAbstractAny]) extends Expectation {
+      override def toString: String = clazz.getSimpleName
+    }
+
+    private val expectationByName = Map(
+      "any" -> SubclassOf(classOf[DfAbstractAny]),
+      "abs_any" -> Value(DfAny),
+      "con_any" -> SubclassOf(classOf[DfConcreteAny]),
+
+      "con_anyval" -> SubclassOf(classOf[DfConcreteAnyVal]),
+
+      "bool" -> SubclassOf(classOf[DfAbstractBoolean]),
+      "abs_bool" -> Value(DfBoolean),
+      "con_bool" -> SubclassOf(classOf[DfConcreteBoolean]),
+
+      "int" -> SubclassOf(classOf[DfAbstractInt]),
+      "abs_int" -> Value(DfInt),
+      "con_int" -> SubclassOf(classOf[DfConcreteInt]),
+
+      "string" -> SubclassOf(classOf[DfConcreteStringRef])
+    )
+
+    def fromPropertyName(name: String): Option[Expectation] =
+      expectationByName.get(name)
+  }
+  case class Is(actual: DfVarOrValue, expected: Expectation, exprText: String) extends Check {
     override def toString: String = s"$actual is $expected"
   }
   case class Print(entity: DfVarOrValue, exprText: String) extends Check {

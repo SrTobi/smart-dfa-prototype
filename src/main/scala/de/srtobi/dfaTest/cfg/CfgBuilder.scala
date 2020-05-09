@@ -183,7 +183,13 @@ class CfgBuilder {
       throw new IllegalStateException("Cfg is not closed")
     }
 
-    ControlFlowGraph(instructions.toArray)
+    val graph = ControlFlowGraph(instructions.toArray)
+
+    for (label <- boundLabels) {
+      label._graph = graph
+    }
+
+    graph
   }
 }
 

@@ -67,8 +67,10 @@ object ControlFlowGraph {
     val jumps = instructions
       .collect { case ji: cfg.JumpingInstruction => ji }
 
-    val labelsOfInstr = jumps
+    val labels = jumps
       .map(_.targetLabel)
+
+    val labelsOfInstr = labels
       .groupBy(_.targetIndex)
       .view
       .mapValues(_.toSet)

@@ -1,7 +1,7 @@
 package de.srtobi.dfaTest
 
 import de.srtobi.dfaTest.cfg._
-import de.srtobi.dfaTest.dfa.{DfConcreteLambdaRef, DfVarOrValue}
+import de.srtobi.dfaTest.dfa._
 
 object CfgTransformer {
   def transformScript(script: Ast.Script): ControlFlowGraph = {
@@ -12,39 +12,72 @@ object CfgTransformer {
   }
 
   object DebugExpr {
+    private var _isInDebugExpr: Boolean = false
     val debugIdentifier: Ast.Identifier = Ast.Identifier("debug")
 
-    def unapply(expr: Ast.Expression): Option[Seq[CfgBuilder => Debug.Check]] = Option(expr match {
-      case Ast.Call(Ast.PropertyAccess(`debugIdentifier`, "print"), args) =>
-        args.map(expr => (cfgBuilder: CfgBuilder) => {
-          val result = transformExpr(expr, RequireResult)(cfgBuilder).get
-          Debug.Print(result, LangPrinter.print(expr))
-        })
+    private def inDebugExpr[R](body: => R): R = {
+      if (_isInDebugExpr) {
+        throw new Exception("Cannot have debug expression in a debug expression")
+      }
+      _isInDebugExpr = true
+      val result = body
+      _isInDebugExpr = false
+      result
+    }
 
-      case Ast.Call(Ast.PropertyAccess(`debugIdentifier`, "liveCode"), args) =>
-        if (args.nonEmpty)
-          throw new Exception("debug.liveCode() cannot take arguments.")
+    def isInDebugExpr: Boolean = _isInDebugExpr
 
-        Seq(_ => Debug.CheckLiveCode)
+    def unapply(expr: Ast.Expression): Option[Seq[CfgBuilder => Debug.Check]] = {
+      val fs: Seq[CfgBuilder => Debug.Check] = expr match {
+        case Ast.Call(Ast.PropertyAccess(`debugIdentifier`, "print"), args) =>
+          args.map(expr => (cfgBuilder: CfgBuilder) => {
+            val result = transformExpr(expr, RequireResult)(cfgBuilder).get
+            Debug.Print(result, LangPrinter.print(expr))
+          })
 
-      case Ast.Call(Ast.PropertyAccess(`debugIdentifier`, "deadCode"), args) =>
-        if (args.nonEmpty)
-          throw new Exception("debug.deadCode() cannot take arguments.")
+        case Ast.Call(Ast.PropertyAccess(`debugIdentifier`, "liveCode"), args) =>
+          if (args.nonEmpty)
+            throw new Exception("debug.liveCode() cannot take arguments.")
 
-        Seq(_ => Debug.CheckDeadCode)
+          Seq(_ => Debug.CheckLiveCode)
 
-      case Ast.Call(`debugIdentifier`, args) =>
-        args.map(expr => (cfgBuilder: CfgBuilder) => expr match {
-          case Ast.Operator(LangParser.debugIsOperator, lhsExpr, rhsExpr) =>
-            val lhs = transformExpr(lhsExpr, RequireResult)(cfgBuilder).get
-            val rhs = transformExpr(rhsExpr, RequireResult)(cfgBuilder).get
-            Debug.Is(lhs, rhs, LangPrinter.print(expr))
-          case _ =>
-            throw new Exception("")
-        })
+        case Ast.Call(Ast.PropertyAccess(`debugIdentifier`, "deadCode"), args) =>
+          if (args.nonEmpty)
+            throw new Exception("debug.deadCode() cannot take arguments.")
+
+          Seq(_ => Debug.CheckDeadCode)
+
+        case Ast.Call(`debugIdentifier`, args) =>
+          args.map(expr => (cfgBuilder: CfgBuilder) => expr match {
+            case Ast.Operator(LangParser.debugIsOperator, lhsExpr, rhsExpr) =>
+              val lhs = transformExpr(lhsExpr, RequireResult)(cfgBuilder).get
+              val rhs = rhsExpr match {
+                case DebugProperty(exp) => exp
+                case expr =>
+                  Debug.Expectation.VarOrValue(
+                    transformExpr(expr, RequireResult)(cfgBuilder).get
+                  )
+              }
+
+              Debug.Is(lhs, rhs, LangPrinter.print(expr))
+            case _ =>
+              throw new Exception("Expected is expression at root of debug call")
+          })
+        case _ =>
+          null
+      }
+
+      Option(fs).map(_.map(f => cb => inDebugExpr(f(cb))))
+    }
+  }
+
+  object DebugProperty {
+    def unapply(expr: Ast.PropertyAccess): Option[Debug.Expectation] = expr match {
+      case Ast.PropertyAccess(Ast.Identifier("debug"), name) if DebugExpr.isInDebugExpr =>
+        Debug.Expectation.fromPropertyName(name)
       case _ =>
-        null
-    })
+        None
+    }
   }
 
   def transformExpr(expr: Ast.Expression, rreq: ResultRequirement)(implicit builder: CfgBuilder): ExprResult = expr match {

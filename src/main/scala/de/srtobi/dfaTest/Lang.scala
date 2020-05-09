@@ -75,7 +75,7 @@ object LangTokens {
   // # 11.6
   def identifierStart[_: P]: P[Unit] = P(unicodeIdStart | "$" | "_")
   def identifierPart[_: P]: P[Unit] = P(unicodeIdContinue | "$" | "_")
-  def identifierName[_: P]: P[String] = P(unicodeIdStart ~ unicodeIdStart.rep).!.filter(!reservedWord.contains(_))
+  def identifierName[_: P]: P[String] = P(identifierStart ~ identifierPart.rep).!.filter(!reservedWord.contains(_))
 
   // # 11.8.1 / 11.8.2
   def nullLiteral[_: P]: P[Unit] = P("null")

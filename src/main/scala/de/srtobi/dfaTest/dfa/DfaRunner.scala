@@ -6,7 +6,7 @@ import de.srtobi.dfaTest.dfa.DfaRunner.WQItem
 
 import scala.collection.mutable
 
-class DfaRunner[DFA <: DataFlowAnalysis](val dfa: DFA)(val controlFlowGraph: ControlFlowGraph) {
+class DfaRunner(val dfa: DataFlowAnalysis)(val controlFlowGraph: ControlFlowGraph, input: Seq[(String, DfConcreteAny)] = Seq.empty) {
   type State = dfa.State
   private type InstructionPtr = dfa.InstructionPtr
   private type Item = WQItem[State, InstructionPtr]
@@ -15,7 +15,7 @@ class DfaRunner[DFA <: DataFlowAnalysis](val dfa: DFA)(val controlFlowGraph: Con
   private val workQueue = mutable.Queue.empty[Item]
 
   locally {
-    addToQueue(dfa.preludePtr, dfa.initialState(controlFlowGraph))
+    addToQueue(dfa.preludePtr, dfa.initialState(controlFlowGraph, input))
   }
 
   private def addToQueue(from: InstructionPtr, instructionAndState: (InstructionPtr, State)): Unit = {

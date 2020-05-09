@@ -152,11 +152,22 @@ class Interpreter(scriptCfg: ControlFlowGraph, stdLib: Seq[(String, DfConcreteAn
           case CheckLiveCode =>
           case Print(entity, exprText) =>
             println(exprText + ": " + load(entity))
-          case Is(actualEntity, expectedEntity, exprText) =>
+          case Is(actualEntity, expectation, exprText) =>
+            import de.srtobi.dfaTest.cfg.Debug.Expectation
             val actual = load(actualEntity)
-            val expected = load(expectedEntity)
-            if (actual != expected) {
-              println(s"Assertion '$exprText' failed ($actual != $expected)")
+            expectation match {
+              case Expectation.VarOrValue(varOrValue) =>
+                val expected = load(varOrValue)
+                if (actual != expected) {
+                  println(s"Assertion '$exprText' failed ($actual != $expected)")
+                }
+              case Expectation.SubclassOf(expectedClass) =>
+                val actualClass = actual.getClass
+                if (!expectedClass.isAssignableFrom(actualClass)) {
+                  println(s"Assertion '$exprText' failed ($actualClass != $expectedClass)")
+                }
+              case Expectation.Value(value) =>
+                throw new Exception("Cannot debug with abstract values in interpreter")
             }
         }
     }
@@ -173,12 +184,12 @@ object Interpreter {
     val code =
       """
         |o = { rand: rand }
-        |debug(4 + 5 is 9)
+        |debug(4 + input is 9)
         |""".stripMargin
     val cfg = CfgTransformer.transformScript(LangParser.parse(code))
     println(cfg.asmText())
     println("---------------------------")
-    val interpreter = new Interpreter(cfg)("input" -> DfValue.int(3))
+    val interpreter = new Interpreter(cfg)("input" -> DfValue.int(5))
     interpreter.run()
   }
 }
