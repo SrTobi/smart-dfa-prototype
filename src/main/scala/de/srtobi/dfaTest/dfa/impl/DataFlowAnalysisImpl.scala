@@ -2,6 +2,7 @@ package de.srtobi.dfaTest
 package dfa
 package impl
 
+import de.srtobi.dfaTest.cfg.Instruction
 import de.srtobi.dfaTest.dfa.impl.constraints.{Constraint, EqualityConstraint}
 
 import scala.collection.mutable
@@ -14,6 +15,8 @@ class DataFlowAnalysisImpl(stdLib: Seq[(String, DfConcreteAny)] = DataFlowAnalys
   private val allocationSites = mutable.Map.empty[InstructionPtr, DfConcreteObjectRef]
 
   override def instructionAt(instructionPtr: cfg.Instruction): cfg.Instruction = instructionPtr
+
+  override def instructionSorting: Ordering[Instruction] = Ordering.by(-_.index)
 
   override def preludePtr: cfg.Instruction = null
   override def initialState(instructions: cfg.ControlFlowGraph, input: Seq[(String, DfConcreteAny)]): (InstructionPtr, State) =

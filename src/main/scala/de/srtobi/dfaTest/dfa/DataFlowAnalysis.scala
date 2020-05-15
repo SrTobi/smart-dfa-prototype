@@ -9,6 +9,8 @@ trait DataFlowAnalysis {
 
   def instructionAt(instructionPtr: InstructionPtr): cfg.Instruction
 
+  def instructionSorting: Ordering[InstructionPtr]
+
   def preludePtr: InstructionPtr
   def initialState(instructions: ControlFlowGraph, prelude: Seq[(String, DfConcreteAny)]): (InstructionPtr, State)
 

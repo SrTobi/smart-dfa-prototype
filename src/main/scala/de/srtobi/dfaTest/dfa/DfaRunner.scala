@@ -12,7 +12,7 @@ class DfaRunner(val dfa: DataFlowAnalysis)(val controlFlowGraph: ControlFlowGrap
   private type Item = WQItem[State, InstructionPtr]
 
   private val enqueuedItems = mutable.Map.empty[InstructionPtr, Item]
-  private val workQueue = mutable.Queue.empty[Item]
+  private val workQueue = mutable.PriorityQueue.empty[Item](dfa.instructionSorting.on(_.instruction))
 
   locally {
     addToQueue(dfa.preludePtr, dfa.initialState(controlFlowGraph, input))
