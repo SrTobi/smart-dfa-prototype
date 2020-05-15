@@ -8,9 +8,7 @@ import de.srtobi.dfaTest.dfa.impl.constraints.Constraint._
 import scala.annotation.tailrec
 
 trait Facts {
-  def truthValueOf(value: DfValue): TruthValue
-  def isTrue(value: DfValue): Boolean = truthValueOf(value) == TruthValue.True
-  def isFalse(value: DfValue): Boolean = truthValueOf(value) == TruthValue.False
+  def computedValues: Map[PinnedValue, DfAbstractAny]
 
   def withConstraint(constraint: Constraint): Facts
   def claim(value: DfValue): (Option[Facts], Option[Facts])
@@ -27,8 +25,6 @@ object Facts {
 }
 
 case class FactsImpl(claims: Map[DfValue, Boolean], constraints: Set[Constraint]) extends Facts {
-  override def truthValueOf(value: DfValue): TruthValue = ???
-
   override def withConstraint(constraint: Constraint): Facts =
     copy(constraints = constraints + constraint)
 
@@ -39,10 +35,27 @@ case class FactsImpl(claims: Map[DfValue, Boolean], constraints: Set[Constraint]
       .filterNot(_.isContradiction)
 
     assert(whenTrue.isDefined || whenFalse.isDefined)
-    (whenTrue, whenFalse)
+    if (whenTrue.isDefined && whenFalse.isDefined) (whenTrue, whenFalse)
+    else if (whenTrue.isDefined) (Some(this), None)
+    else (None, Some(this))
+  }
+
+  override def computedValues: Map[PinnedValue, DfAbstractAny] = {
+    var result = Map.empty[PinnedValue, DfAbstractAny]
+    buildPossibleEqualityMap {
+      map =>
+        result = result.mergeWith(map.concreteValues)(_ unify _)
+        false
+    }
+    result
   }
 
   def isContradiction: Boolean = {
+    val foundValidApplication = buildPossibleEqualityMap(_ => true)
+    !foundValidApplication
+  }
+
+  def buildPossibleEqualityMap(after: EqualityMap => Boolean): Boolean = {
     def applyConstraint(constraint: Constraint, targetTruthValue: Boolean, equalities: EqualityMap)(after: EqualityMap => Boolean): Boolean = {
       @tailrec
       def applyDemand(demand: ConstraintDemand, equalities: EqualityMap, targetTruthValue: Boolean)(after: EqualityMap => Boolean): Boolean = {
@@ -98,8 +111,7 @@ case class FactsImpl(claims: Map[DfValue, Boolean], constraints: Set[Constraint]
       case Seq() => after(equalities)
     }
 
-    val foundValidApplication = applyClaims(claims.toSeq, EqualityMap.empty)(_ => true)
-    !foundValidApplication
+    applyClaims(claims.toSeq, EqualityMap.empty)(after)
   }
 
   override def unify(other: Facts): Facts = {
@@ -116,6 +128,11 @@ import de.srtobi.dfaTest.dfa.impl.EqualityMap.Proxy
 case class EqualityMap private(var parents: Map[PinnedValue, Proxy],
                                inequalities: Map[PinnedValue, Set[Proxy]],
                                truthyKnowledge: Map[PinnedValue, Boolean]) {
+  def concreteValues: Map[PinnedValue, DfAbstractAny] = {
+    parents.keys
+      .flatMap(k => findProxy(k).left.toOption.map(k -> _))
+      .toMap
+  }
 
   def withTruthValue(pin: PinnedValue, truthValue: Boolean): Option[EqualityMap] = {
     findProxy(pin) match {
