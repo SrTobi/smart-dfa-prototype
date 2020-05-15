@@ -75,12 +75,6 @@ class DfConcreteObjectRef extends DfConcreteAnyRef {
   override def truthValue: TruthValue = TruthValue.True
 }
 
-class DfConcreteStringRef(value: String) extends DfConcreteAnyRef {
-  override def toString: String = "\"%s\"".format(value)
-
-  override def truthValue: TruthValue = TruthValue.True
-}
-
 class DfConcreteLambdaRef(val lambda: Ast.Function,
                           val params: Seq[DfConcreteLambdaRef.Parameter],
                           val cfg: ControlFlowGraph) extends DfConcreteAnyRef {
@@ -105,7 +99,7 @@ object DfConcreteLambdaRef {
 }
 
 sealed abstract class DfConcreteAnyVal extends DfConcreteAny {
-  type Type <: AnyVal
+  type Type
   def value: Type
 }
 
@@ -210,12 +204,24 @@ final case class DfConcreteInt(override val value: Int) extends DfConcreteAnyVal
   }
 }
 
+case class DfConcreteString(override val value: String) extends DfConcreteAnyVal {
+  override type Type = String
+
+  override def toString: String = "\"%s\"".format(value)
+
+  override def truthValue: TruthValue = TruthValue(concreteTruthValue)
+
+  override def concreteTruthValue: Boolean = value != ""
+}
+
 case class DfAbstractUnion(values: Set[DfAbstractAny]) extends DfAbstractAny {
   assert(values.size >= 2)
   assert(!values.exists(_.isInstanceOf[DfAbstractUnion]))
 
   override def truthValue: TruthValue = TruthValue.unifiable.unify(values.iterator.map(_.truthValue))
   override def canBeAllOf(value: DfAbstractAny): Boolean = ???
+
+  override def toString: String = values.mkString("Union(", " | ", ")")
 }
 
 object DfValue {
@@ -242,6 +248,7 @@ object DfValue {
       case DfUndefined => undef = DfUndefined
       case abstractBool: DfAbstractBoolean => bool = bool.map(_ unify abstractBool).orElse(Some(abstractBool))
       case abstractInt: DfAbstractInt => int = int.map(_ unify abstractInt).orElse(Some(abstractInt))
+      case string: DfConcreteString => setBuilder += string
       case ref: DfConcreteAnyRef => setBuilder += ref
       case DfAbstractUnion(values) => add(values)
     }

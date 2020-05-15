@@ -13,7 +13,7 @@ class CfgBuilder {
   private val boundLabels = mutable.Set.empty[BuildLabel]
   private val usedLabels = mutable.Set.empty[Label]
   private var numLabelsToNextInstr = 0
-  private val stringLiteralCache = mutable.Map.empty[String, DfConcreteStringRef]
+  private val stringLiteralCache = mutable.Map.empty[String, DfConcreteString]
   private val variableCache = mutable.Map.empty[String, DfVariable]
 
   private def indexOfNextInstr: Int = instructions.length
@@ -138,7 +138,7 @@ class CfgBuilder {
   def undefined: DfUndefined.type = DfValue.undefined
   def boolean(value: Boolean): DfConcreteBoolean = DfValue.boolean(value)
   def int(value: Int): DfConcreteInt = DfValue.int(value)
-  def string(value: String): DfConcreteStringRef = stringLiteralCache.getOrElseUpdate(value, new DfConcreteStringRef(value))
+  def string(value: String): DfConcreteString = stringLiteralCache.getOrElseUpdate(value, DfConcreteString(value))
 
   def bindLabel(label: BuildLabel): this.type = {
     if (label.isBound)

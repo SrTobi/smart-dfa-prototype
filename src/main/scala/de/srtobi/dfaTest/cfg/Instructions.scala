@@ -306,7 +306,7 @@ object Debug extends Instruction.Info("Debug") {
       "abs_int" -> Value(DfInt),
       "con_int" -> SubclassOf(classOf[DfConcreteInt]),
 
-      "string" -> SubclassOf(classOf[DfConcreteStringRef])
+      "string" -> SubclassOf(classOf[DfConcreteString])
     )
 
     def fromPropertyName(name: String): Option[Expectation] =
