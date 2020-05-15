@@ -5,6 +5,7 @@ package impl
 import de.srtobi.dfaTest.dfa.impl.constraints.{Constraint, EqualityConstraint}
 
 import scala.collection.mutable
+import scala.util.control.NonFatal
 
 class DataFlowAnalysisImpl(stdLib: Seq[(String, DfConcreteAny)] = DataFlowAnalysisImpl.stdLib) extends DataFlowAnalysis {
   override type State = ExecutionState
@@ -18,7 +19,7 @@ class DataFlowAnalysisImpl(stdLib: Seq[(String, DfConcreteAny)] = DataFlowAnalys
   override def initialState(instructions: cfg.ControlFlowGraph, input: Seq[(String, DfConcreteAny)]): (InstructionPtr, State) =
     instructions.entryInstruction -> ExecutionState.from(stdLib ++ input)
 
-  override def process(instruction: InstructionPtr, states: Iterable[State]): Seq[(InstructionPtr, State)] = {
+  override def process(instruction: InstructionPtr, states: Iterable[State]): Seq[(InstructionPtr, State)] = try {
     implicit class ExecutionStateExt(val executionState: ExecutionState) {
       def withConstraint(constraintF: PinnedValue => Constraint, name: String): (PinnedValue, ExecutionState) = {
         val pin = PinnedValue(instruction)(name)
@@ -64,10 +65,11 @@ class DataFlowAnalysisImpl(stdLib: Seq[(String, DfConcreteAny)] = DataFlowAnalys
         val cond = load(condition)
         val (ifTrue, ifFalse) = state.facts.claim(cond)
         return toNext(ifTrue, instruction.nextInstruction) ++
-                toNext(ifFalse, targetLabel.target)
+          toNext(ifFalse, targetLabel.target)
 
       case cfg.Debug(checks) =>
         import cfg.Debug._
+        val line = instruction.lineNumber
         checks.foreach {
           case CheckDeadCode =>
             println("Instruction should be dead: " + instruction.asmLine)
@@ -80,21 +82,22 @@ class DataFlowAnalysisImpl(stdLib: Seq[(String, DfConcreteAny)] = DataFlowAnalys
               case Expectation.VarOrValue(varOrValue) =>
                 val expected = load(varOrValue)
                 if (actual.normalize(state) != expected) {
-                  println(s"Assertion '$exprText' failed ($actual != $expected)")
+                  println(s"Assertion '$exprText' in line $line failed ($actual != $expected)")
                 }
               case Expectation.SubclassOf(expectedClass) =>
-                val actualClass = actual.getClass
+                val actualClass = actual.normalize(state).getClass
                 if (!expectedClass.isAssignableFrom(actualClass)) {
-                  println(s"Assertion '$exprText' failed ($actualClass != $expectedClass)")
+                  println(s"Assertion '$exprText' in line $line failed ($actualClass ⊂ $expectedClass)")
                 }
               case Expectation.Value(expected) =>
                 if (actual.normalize(state) != expected) {
-                  println(s"Assertion '$exprText' failed ($actual != $expected)")
+                  println(s"Assertion '$exprText' in line $line failed ($actual != $expected)")
                 }
             }
 
           case Print(entity, exprText) =>
-            println(exprText + ": " + load(entity).toString(state))
+            val actual = load(entity).toString(state)
+            println(s"$exprText in $line: $actual")
         }
         state
 
@@ -105,7 +108,7 @@ class DataFlowAnalysisImpl(stdLib: Seq[(String, DfConcreteAny)] = DataFlowAnalys
         val result: DfValue =
           load(func) match {
             case DfConcreteInternalFunc("rand") =>
-              DfPinned.fromAnchor(instruction, "rand in " + instruction.index)
+              DfPinned.fromAnchor(instruction, "rand in " + instruction.lineNumber)
             case _ => ???
           }
         target.fold(state)(state.withStore(_, result))
@@ -116,6 +119,9 @@ class DataFlowAnalysisImpl(stdLib: Seq[(String, DfConcreteAny)] = DataFlowAnalys
         ???
     }
     Seq(instruction.nextInstruction -> nextState)
+  } catch {
+    case NonFatal(e) =>
+      throw new Exception(s"Exception while processing '$instruction' in ${instruction.lineNumber}: '" + e.getMessage, e)
   }
 }
 
@@ -131,7 +137,7 @@ object DfaTest {
   def main(args: Array[String]): Unit = {
     val code =
       """
-        |a = rand()
+        |a = 1
         |b = rand()
         |debug.print(a)
         |if (a == b) {

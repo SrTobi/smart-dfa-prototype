@@ -18,7 +18,9 @@ case class ExecutionState(variables: Map[DfVariable, DfValue], facts: Facts) {
 
   def normalize(pin: PinnedValue): DfAbstractAny = DfAny
 
-  def unify(other: ExecutionState): ExecutionState = ???
+  def unify(other: ExecutionState): ExecutionState = {
+    ExecutionState(variables.mergeWith(other.variables)(DfValue.unify(_, _)), facts unify other.facts)
+  }
 }
 
 object ExecutionState {

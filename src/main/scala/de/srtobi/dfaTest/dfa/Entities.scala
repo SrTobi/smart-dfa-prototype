@@ -35,6 +35,11 @@ final case class DfExternalValue[-Context, +ExternalEntity <: DfExternalEntity[C
 }
 
 sealed trait DfAbstractAny extends DfValue[Any, Nothing] {
+  final def isNothing: Boolean = this == DfNothing
+  final def withoutNothing: Option[DfAbstractAny] =
+    if (isNothing) None else Some(this)
+  final def unify(other: DfAbstractAny): DfAbstractAny = DfValue.unify(this, other)
+
   final override def normalize(context: Any): this.type = this
   final override def toString(context: Any): String = this.toString()
 
@@ -47,9 +52,14 @@ object DfAbstractAny {
     (entities: IterableOnce[DfAbstractAny]) => DfValue.unify(entities)
 }
 
+case object DfNothing extends DfAbstractAny {
+  override def canBeAllOf(value: DfAbstractAny): Boolean = false
+  override def truthValue: TruthValue = TruthValue.Bottom
+}
+
 case object DfAny extends DfAbstractAny {
   override def canBeAllOf(value: DfAbstractAny): Boolean = value == DfAny
-  override def truthValue: TruthValue = TruthValue.Unknown
+  override def truthValue: TruthValue = TruthValue.Top
 }
 
 sealed abstract class DfConcreteAny extends DfAbstractAny with DfVarOrValue {
@@ -129,7 +139,7 @@ object DfAbstractBoolean {
 
 case object DfBoolean extends DfAbstractBoolean {
   override def canBeAllOf(value: DfAbstractAny): Boolean = value.isInstanceOf[DfAbstractBoolean]
-  override def truthValue: TruthValue = TruthValue.Unknown
+  override def truthValue: TruthValue = TruthValue.Top
   override def unify(other: DfAbstractBoolean): DfBoolean.type = DfBoolean
   override def couldBe(bool: Boolean): Boolean = true
   override def negative: DfBoolean.type = DfBoolean
@@ -185,7 +195,7 @@ sealed trait DfAbstractInt extends DfAbstractAny {
 
 case object DfInt extends DfAbstractInt {
   override def canBeAllOf(value: DfAbstractAny): Boolean = value.isInstanceOf[DfAbstractInt]
-  override def truthValue: TruthValue = TruthValue.Unknown
+  override def truthValue: TruthValue = TruthValue.Top
   override def unify(other: DfAbstractInt): DfInt.type = DfInt
 }
 
@@ -209,6 +219,7 @@ case class DfAbstractUnion(values: Set[DfAbstractAny]) extends DfAbstractAny {
 }
 
 object DfValue {
+  def nothing: DfNothing.type  = DfNothing
   def int: DfInt.type = DfInt
   def int(value: Int): DfConcreteInt = DfConcreteInt(value)
 
@@ -219,18 +230,18 @@ object DfValue {
 
   def unify(first: DfAbstractAny, rest: DfAbstractAny*): DfAbstractAny = unify(first +: rest)
   def unify(values: IterableOnce[DfAbstractAny]): DfAbstractAny = {
-    assert(values.iterator.nonEmpty)
     var any = false
     var undef: DfUndefined.type = null
-    var bool: DfAbstractBoolean = null
-    var int: DfAbstractInt = null
+    var bool = Option.empty[DfAbstractBoolean]
+    var int = Option.empty[DfAbstractInt]
     val setBuilder = Set.newBuilder[DfAbstractAny]
 
     def add(values: IterableOnce[DfAbstractAny]): Unit = values.iterator.takeWhile(_ => !any).foreach {
+      case DfNothing =>
       case DfAny => any = true
       case DfUndefined => undef = DfUndefined
-      case abstractBool: DfAbstractBoolean => bool = bool unify abstractBool
-      case abstractInt: DfAbstractInt => int = int unify abstractInt
+      case abstractBool: DfAbstractBoolean => bool = bool.map(_ unify abstractBool).orElse(Some(abstractBool))
+      case abstractInt: DfAbstractInt => int = int.map(_ unify abstractInt).orElse(Some(abstractInt))
       case ref: DfConcreteAnyRef => setBuilder += ref
       case DfAbstractUnion(values) => add(values)
     }
@@ -238,12 +249,12 @@ object DfValue {
     add(values)
     if (any) return DfAny
     setBuilder ++= Option(undef)
-    setBuilder ++= Option(bool)
-    setBuilder ++= Option(int)
+    setBuilder ++= bool
+    setBuilder ++= int
 
     val set = setBuilder.result()
     set.size match {
-      case 0 => throw new AssertionError("There should be at least one element")
+      case 0 => DfNothing
       case 1 => set.head
       case _ => DfAbstractUnion(set)
     }

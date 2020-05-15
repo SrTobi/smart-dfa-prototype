@@ -11,6 +11,14 @@ case class EqualityConstraint(override val result: PinnedValue, lhs: DfValue, rh
   }
 
   override def propagate(targetTruthValue: Boolean): IterableOnce[Seq[Constraint.ConstraintDemand]] = {
-    Iterator(Seq(InvertedDemand.invertIf(targetTruthValue)(EqualityDemand(lhs, rhs))))
+    if (targetTruthValue) {
+      for (a <- lhs.dfPinnedValues; b <- rhs.dfPinnedValues)
+        yield Seq(EqualityDemand(a, b))
+    } else {
+      val unequals =
+        for (a <- lhs.dfPinnedValues; b <- rhs.dfPinnedValues)
+          yield InvertedDemand(EqualityDemand(a, b))
+      Iterator(unequals.toSeq)
+    }
   }
 }

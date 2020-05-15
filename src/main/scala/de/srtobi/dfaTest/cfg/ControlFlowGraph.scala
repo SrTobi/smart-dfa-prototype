@@ -32,8 +32,7 @@ class ControlFlowGraph private (val instructions: Array[cfg.Instruction], val la
       }
 
       if (lineNumbers) {
-        val line = idx + 1
-        builder.append(line)
+        builder.append(instr.lineNumber)
         builder.append(": ")
       }
 

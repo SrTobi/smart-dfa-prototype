@@ -146,12 +146,14 @@ class Interpreter(scriptCfg: ControlFlowGraph, stdLib: Seq[(String, DfConcreteAn
       case cfg.Noop(_) => ()
       case cfg.Debug(checks) =>
         import cfg.Debug._
+        val line = instruction.lineNumber
         checks.foreach {
           case CheckDeadCode =>
-            println(s"Instruction ${instruction.index} should be dead code: ${instruction.asmString}")
+            println(s"Instruction in line $line should be dead code: ${instruction.asmString}")
           case CheckLiveCode =>
           case Print(entity, exprText) =>
-            println(exprText + ": " + load(entity))
+            val value = load(entity)
+            println(s"$exprText in $line: $value)}")
           case Is(actualEntity, expectation, exprText) =>
             import de.srtobi.dfaTest.cfg.Debug.Expectation
             val actual = load(actualEntity)

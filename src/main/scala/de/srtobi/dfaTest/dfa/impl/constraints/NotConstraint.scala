@@ -11,6 +11,14 @@ case class NotConstraint(override val result: PinnedValue, inner: DfValue) exten
   }
 
   override def propagate(targetTruthValue: Boolean): IterableOnce[Seq[ConstraintDemand]] = {
-    Iterator(Seq(InvertedDemand.invertIf(targetTruthValue)(TruthyDemand(inner))))
+    if (targetTruthValue) {
+      for (i <- inner.dfPinnedValues)
+        yield Seq(TruthyDemand(i))
+    } else {
+      val falsies =
+        for (i <- inner.dfPinnedValues)
+          yield InvertedDemand(TruthyDemand(i))
+      Iterator(falsies.toSeq)
+    }
   }
 }

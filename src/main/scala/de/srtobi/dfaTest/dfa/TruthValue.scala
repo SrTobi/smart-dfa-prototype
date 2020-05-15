@@ -13,19 +13,19 @@ object TruthValue {
     if (bool) True else False
 
   def apply(bool: Option[Boolean]): TruthValue =
-    bool.fold(Unknown: TruthValue)(TruthValue(_))
+    bool.fold(Top: TruthValue)(TruthValue(_))
 
-  case object Unknown extends TruthValue(true, true)
+  case object Top extends TruthValue(true, true)
   case object True extends TruthValue(true, false)
   case object False extends TruthValue(false, true)
+  case object Bottom extends TruthValue(false, false)
 
   implicit val unifiable: Unifiable[TruthValue] =
     (entities: IterableOnce[TruthValue]) => {
-      val it = entities.iterator
-      assert(it.hasNext)
-      it.next() match {
-        case Unknown => Unknown
-        case first => if (it.forall(_ == first)) first else Unknown
+      val it = entities.iterator.filter(_ != Bottom)
+      it.nextOption().fold(Bottom: TruthValue) {
+        case Top => Top
+        case first => if (it.forall(_ == first)) first else Top
       }
     }
 }

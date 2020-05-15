@@ -15,8 +15,8 @@ trait Constraint {
 
 object Constraint {
   sealed trait ConstraintDemand
-  case class TruthyDemand(value: DfValue) extends ConstraintDemand
-  case class EqualityDemand(a: DfValue, b: DfValue) extends ConstraintDemand
+  case class TruthyDemand(value: DfPinned) extends ConstraintDemand
+  case class EqualityDemand(a: DfPinned, b: DfPinned) extends ConstraintDemand
   case class InvertedDemand(inner: ConstraintDemand) extends ConstraintDemand
 
   object InvertedDemand {

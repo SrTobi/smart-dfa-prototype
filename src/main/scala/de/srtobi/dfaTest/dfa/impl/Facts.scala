@@ -14,26 +14,28 @@ trait Facts {
 
   def withConstraint(constraint: Constraint): Facts
   def claim(value: DfValue): (Option[Facts], Option[Facts])
+
+  def unify(other: Facts): Facts
 }
 
 
 object Facts {
-  val empty: Facts = FactsImpl(Seq.empty, Seq.empty)
+  val empty: Facts = FactsImpl(Map.empty, Set.empty)
 
   implicit val unifiable: Unifiable[Facts] =
-    (entities: IterableOnce[Facts]) => ???
+    (entities: IterableOnce[Facts]) => entities.iterator.reduce(_ unify _)
 }
 
-case class FactsImpl(claims: Seq[(DfValue, Boolean)], constraints: Seq[Constraint]) extends Facts {
+case class FactsImpl(claims: Map[DfValue, Boolean], constraints: Set[Constraint]) extends Facts {
   override def truthValueOf(value: DfValue): TruthValue = ???
 
   override def withConstraint(constraint: Constraint): Facts =
-    copy(constraints = constraints :+ constraint)
+    copy(constraints = constraints + constraint)
 
   override def claim(value: DfValue): (Option[Facts], Option[Facts]) = {
-    val whenTrue = Some(copy(claims = (value, true) +: claims))
+    val whenTrue = Some(copy(claims = claims + (value -> true)))
       .filterNot(_.isContradiction)
-    val whenFalse = Some(copy(claims = (value, false)  +: claims))
+    val whenFalse = Some(copy(claims = claims + (value -> false)))
       .filterNot(_.isContradiction)
 
     assert(whenTrue.isDefined || whenFalse.isDefined)
@@ -76,11 +78,16 @@ case class FactsImpl(claims: Seq[(DfValue, Boolean)], constraints: Seq[Constrain
     def applyValue(value: DfValue, targetTruthValue: Boolean, equalities: EqualityMap)(after: EqualityMap => Boolean): Boolean = value match {
       case normal: DfAbstractAny =>
         normal.truthValue.canBe(targetTruthValue) && after(equalities)
-      case DfPinned(pin) =>
-        equalities.withTruthValue(pin, targetTruthValue).fold(false)( em =>
-          if (em eq equalities) after(em)
-          else applyConstraints(constraints.filter(_.result == pin), targetTruthValue, em)(after)
-        )
+      case DfAE(ae) =>
+        ae match {
+          case pin: PinnedValue =>
+            equalities.withTruthValue(pin, targetTruthValue).fold(false)( em =>
+              if (em eq equalities) after(em)
+              else applyConstraints(constraints.filter(_.result == pin).toSeq, targetTruthValue, em)(after)
+            )
+          case union: UnionValue =>
+            union.values.exists(applyValue(_, targetTruthValue, equalities)(after))
+        }
     }
 
     def applyClaims(claims: Seq[(DfValue, Boolean)], equalities: EqualityMap)(after: EqualityMap => Boolean): Boolean = claims match {
@@ -91,8 +98,16 @@ case class FactsImpl(claims: Seq[(DfValue, Boolean)], constraints: Seq[Constrain
       case Seq() => after(equalities)
     }
 
-    val foundValidApplication = applyClaims(claims, EqualityMap.empty)(_ => true)
+    val foundValidApplication = applyClaims(claims.toSeq, EqualityMap.empty)(_ => true)
     !foundValidApplication
+  }
+
+  override def unify(other: Facts): Facts = {
+    val o = other.asInstanceOf[FactsImpl]
+    val newClaims = claims.combineWith(o.claims) {
+      (a, b) => if (a == b) Some(a) else None
+    }
+    FactsImpl(newClaims, constraints | o.constraints)
   }
 }
 
@@ -118,11 +133,11 @@ case class EqualityMap private(var parents: Map[PinnedValue, Proxy],
     }
   }
 
-  def withEquality(a: DfValue, b: DfValue, unequal: Boolean): Option[EqualityMap] = {
+  def withEquality(a: DfPinned, b: DfPinned, equal: Boolean = true): Option[EqualityMap] = {
     (findProxy(a), findProxy(b)) match {
       case (Some(a), Some(b)) =>
-        if (unequal) withInequality(a, b)
-        else withEquality(a, b)
+        if (equal) withEquality(a, b)
+        else withInequality(a, b)
       case _ => Some(this)
     }
   }
@@ -204,8 +219,8 @@ case class EqualityMap private(var parents: Map[PinnedValue, Proxy],
     case Right(pin) => truthValueOf(pin)
   }
 
-  private def findProxy(value: DfValue): Option[Proxy] = value match {
-    case DfPinned(pin) => Some(Right(pin))
+  private def findProxy(value: DfPinned): Option[Proxy] = value match {
+    case DfPinned(pin) => Some(findProxy(pin))
     case concrete: DfConcreteAny => Some(Left(concrete))
     case _ => None
   }
@@ -215,6 +230,7 @@ case class EqualityMap private(var parents: Map[PinnedValue, Proxy],
       case Some(parent) =>
         val proxy = findProxy(parent)
         if (proxy != parent) {
+          // union find path compression
           parents += pin -> proxy
         }
         proxy

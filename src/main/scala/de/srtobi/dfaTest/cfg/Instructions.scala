@@ -13,6 +13,8 @@ sealed abstract class Instruction {
     _index
   }
 
+  def lineNumber: Int= index + 1
+
   private[dfaTest] def index_=(idx: Int): Unit = {
     assert(_index == -1)
     assert(idx >= 0)
@@ -39,7 +41,7 @@ sealed abstract class Instruction {
   def entities: Seq[DfVarOrValue] = sourceEntities ++ variables
 
   def asmString: String
-  def asmLine: String = s"$index: $asmString"
+  def asmLine: String = s"$lineNumber: $asmString"
   def info: Instruction.Info
 
   override def toString: String = asmString
