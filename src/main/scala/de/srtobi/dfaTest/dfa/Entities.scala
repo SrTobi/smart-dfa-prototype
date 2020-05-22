@@ -43,8 +43,11 @@ sealed trait DfAbstractAny extends DfValue[Any, Nothing] {
   final override def normalize(context: Any): this.type = this
   final override def toString(context: Any): String = this.toString()
 
+  def intersect(other: DfAbstractAny): DfAbstractAny = DfValue.intersect(this, other)
+  def intersects(other: DfAbstractAny): Boolean = (this intersect other) != DfNothing
   def canBeAllOf(value: DfAbstractAny): Boolean
   def truthValue: TruthValue
+  def isConcrete: Boolean = false
 }
 
 object DfAbstractAny {
@@ -65,6 +68,7 @@ case object DfAny extends DfAbstractAny {
 sealed abstract class DfConcreteAny extends DfAbstractAny with DfVarOrValue {
   final override def canBeAllOf(value: DfAbstractAny): Boolean = this == value
   def concreteTruthValue: Boolean
+  override def isConcrete: Boolean = true
 }
 
 sealed abstract class DfConcreteAnyRef extends DfConcreteAny {
@@ -217,6 +221,7 @@ case class DfConcreteString(override val value: String) extends DfConcreteAnyVal
 case class DfAbstractUnion(values: Set[DfAbstractAny]) extends DfAbstractAny {
   assert(values.size >= 2)
   assert(!values.exists(_.isInstanceOf[DfAbstractUnion]))
+  assert(!values.contains(DfNothing))
 
   override def truthValue: TruthValue = TruthValue.unifiable.unify(values.iterator.map(_.truthValue))
   override def canBeAllOf(value: DfAbstractAny): Boolean = ???
@@ -264,6 +269,45 @@ object DfValue {
       case 0 => DfNothing
       case 1 => set.head
       case _ => DfAbstractUnion(set)
+    }
+  }
+
+  def intersect(first: DfAbstractAny, rest: DfAbstractAny*): DfAbstractAny = intersect(first +: rest)
+
+  def intersect(a: IterableOnce[DfAbstractAny]): DfAbstractAny = {
+    def toSet(maybeUnion: DfAbstractAny): Set[DfAbstractAny] = maybeUnion match {
+      case DfAbstractUnion(values) => values
+      case DfNothing => Set.empty
+      case _ => Set(maybeUnion)
+    }
+
+    def combine(a: Set[DfAbstractAny], b: Set[DfAbstractAny]): Set[DfAbstractAny] = {
+      if (a.isEmpty) a
+      else if (b.isEmpty) b
+      else if (a.contains(DfAny)) b
+      else if (b.contains(DfAny)) a
+      else {
+        val result = Set.newBuilder[DfAbstractAny]
+        for (e <- a) e match {
+          case DfBoolean => result ++= b.find(_.isInstanceOf[DfAbstractBoolean])
+          case DfInt => result ++= b.find(_.isInstanceOf[DfAbstractInt])
+          case bool: DfConcreteBoolean if b.contains(DfBoolean) => result += bool
+          case int: DfConcreteInt if b.contains(DfInt) => result += int
+          case concrete if b.contains(concrete) =>
+            result += concrete
+          case _ =>
+        }
+        result.result()
+      }
+    }
+
+    a.iterator.map(toSet).reduceOption(combine).fold(DfAny: DfAbstractAny) {
+      set =>
+        set.size match {
+          case 0 => DfNothing
+          case 1 => set.head
+          case _ => DfAbstractUnion(set)
+        }
     }
   }
 }

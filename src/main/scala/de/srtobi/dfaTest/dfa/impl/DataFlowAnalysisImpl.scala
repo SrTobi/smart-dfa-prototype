@@ -140,16 +140,26 @@ object DfaTest {
   def main(args: Array[String]): Unit = {
     val code =
       """
-        |a = 1
-        |b = rand()
-        |debug.print(a)
+        |if (rand()) {
+        | a = "a"
+        |} else {
+        | a = "b"
+        |}
+        |
+        |if (rand()) {
+        | b = "b"
+        |} else {
+        | b = "c"
+        |}
+        |//debug.print(a)
+        |//debug.print(b)
+        |
         |if (a == b) {
-        |  if (a == b) {
-        |  }
         |  debug.print(a)
+        |  debug.print(b)
         |}
         |debug.print(a)
-        |debug(a is debug.any)
+        |debug.print(b)
         |""".stripMargin
     val cfg = CfgTransformer.transformScript(LangParser.parse(code))
     println(cfg.asmText())

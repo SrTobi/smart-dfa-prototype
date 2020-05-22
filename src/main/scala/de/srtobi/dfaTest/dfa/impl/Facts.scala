@@ -127,17 +127,18 @@ import de.srtobi.dfaTest.dfa.impl.EqualityMap.Proxy
 
 case class EqualityMap private(var parents: Map[PinnedValue, Proxy],
                                inequalities: Map[PinnedValue, Set[Proxy]],
+                               abstractKnowledge: Map[PinnedValue, DfAbstractAny],
                                truthyKnowledge: Map[PinnedValue, Boolean]) {
   def concreteValues: Map[PinnedValue, DfAbstractAny] = {
-    parents.keys
-      .flatMap(k => findProxy(k).left.toOption.map(k -> _))
+    (parents.keys ++ abstractKnowledge.keySet)
+      .map(k => findProxy(k).fold(k -> _, k -> abstractValuesOf(_)))
       .toMap
   }
 
   def withTruthValue(pin: PinnedValue, truthValue: Boolean): Option[EqualityMap] = {
     findProxy(pin) match {
-      case Left(concrete) =>
-        if (concrete.truthValue.canBe(truthValue)) Some(this)
+      case Left(abs) =>
+        if (abs.truthValue.canBe(truthValue)) Some(this)
         else None
       case Right(proxy) =>
         truthyKnowledge.get(proxy) match {
@@ -155,12 +156,22 @@ case class EqualityMap private(var parents: Map[PinnedValue, Proxy],
       case (Some(a), Some(b)) =>
         if (equal) withEquality(a, b)
         else withInequality(a, b)
-      case _ => Some(this)
+      case (Some(a), None) =>
+        if (equal) withEquality(a, b.asInstanceOf[DfAbstractAny])
+        else withInequality(a, b.asInstanceOf[DfAbstractAny])
+      case (None, Some(b)) =>
+        if (equal) withEquality(b, a.asInstanceOf[DfAbstractAny])
+        else withInequality(b, a.asInstanceOf[DfAbstractAny])
+      case _ =>
+        val absA = a.asInstanceOf[DfAbstractAny]
+        val absB = b.asInstanceOf[DfAbstractAny]
+        if (absA intersects absB) Some(this)
+        else None
     }
   }
 
   private def withInequality(a: Proxy, b: Proxy): Option[EqualityMap] = {
-    if (isEqual(a, b)) None
+    if (isCertainlyEqual(a, b)) None
     else {
       implicit class InequalitiesOps(val inequalities: Map[PinnedValue, Set[Proxy]]) {
         def addInequality(a: Proxy, b: Proxy): Map[PinnedValue, Set[Proxy]] = a match {
@@ -174,6 +185,14 @@ case class EqualityMap private(var parents: Map[PinnedValue, Proxy],
     }
   }
 
+  private def withInequality(a: Proxy, abstr: DfAbstractAny): Option[EqualityMap] = {
+    assert(!abstr.isConcrete)
+
+    // there is nothing much to do, is there?
+    // we know that abstr can be one of muiltiple values, but we don't know which exactly
+    Some(this)
+  }
+
   private def withEquality(a: Proxy, b: Proxy): Option[EqualityMap] = {
     val (pin, other) = (a, b) match {
       case (Right(pin), b) => (pin, b)
@@ -184,15 +203,38 @@ case class EqualityMap private(var parents: Map[PinnedValue, Proxy],
           else None
         )
     }
-    if (isUnequal(pin, b))
+    if (isCertainlyUnequal(pin, b))
       return None
 
     Some(withMergedProxies(other, pin))
   }
 
-  private def isEqual(a: Proxy, b: Proxy): Boolean = a == b
+  private def withEquality(a: Proxy, abstr: DfAbstractAny): Option[EqualityMap] = {
+    assert(!abstr.isConcrete)
 
-  private def isUnequal(pin: PinnedValue, other: Proxy): Boolean = {
+    a match {
+      case Left(concrete) =>
+        if (abstr intersects concrete) Some(this)
+        else None
+      case Right(pin) =>
+        abstractKnowledge.get(pin) match {
+          case Some(old) =>
+            val intersection = old intersect abstr
+            if (intersection.isNothing) None
+            else Some(copy(
+              abstractKnowledge = abstractKnowledge + (pin -> intersection)
+            ))
+          case None =>
+            Some(copy(abstractKnowledge = abstractKnowledge + (pin -> abstr)))
+        }
+
+
+    }
+  }
+
+  private def isCertainlyEqual(a: Proxy, b: Proxy): Boolean = a == b
+
+  private def isCertainlyUnequal(pin: PinnedValue, other: Proxy): Boolean = {
     assert(isProxy(pin))
 
     inequalities.get(pin).exists(_.contains(other))
@@ -202,6 +244,8 @@ case class EqualityMap private(var parents: Map[PinnedValue, Proxy],
     assert(isProxy(newProxy))
     assert(isProxy(other))
     assert(truthValueOf(newProxy) overlaps truthValueOf(Right(other)))
+    val intersection = abstractValuesOf(newProxy) intersect abstractValuesOf(other)
+    assert(!intersection.isNothing)
 
     copy(
       parents = parents + (other -> newProxy),
@@ -209,14 +253,17 @@ case class EqualityMap private(var parents: Map[PinnedValue, Proxy],
         inequalities.get(other)
           .zip(newProxy.toOption)
           .fold(inequalities) {
-          case (otherUnequals, newProxy) =>
-            inequalities.updatedWith(newProxy) {
-              case Some(old) =>
-                Some(old | otherUnequals)
-              case None =>
-                Some(otherUnequals)
+            case (otherUnequals, newProxy) =>
+              inequalities.updatedWith(newProxy) {
+                case Some(old) =>
+                  Some(old | otherUnequals)
+                case None =>
+                  Some(otherUnequals)
             }
-        },
+          },
+      abstractKnowledge =
+        if (intersection == DfAny) abstractKnowledge
+        else newProxy.fold(_ => abstractKnowledge, pin => abstractKnowledge + (pin -> intersection)),
       truthyKnowledge =
         newProxy.toOption
           .zip(truthyKnowledge.get(other))
@@ -225,6 +272,12 @@ case class EqualityMap private(var parents: Map[PinnedValue, Proxy],
           )
     )
   }
+
+  private def abstractValuesOf(pin: PinnedValue): DfAbstractAny =
+    abstractKnowledge.getOrElse(pin, DfAny)
+
+  private def abstractValuesOf(proxy: Proxy): DfAbstractAny =
+    proxy.fold(identity, abstractValuesOf)
 
   private def truthValueOf(proxy: PinnedValue): TruthValue = {
     isProxy(proxy)
@@ -269,5 +322,5 @@ case class EqualityMap private(var parents: Map[PinnedValue, Proxy],
 
 object EqualityMap {
   private type Proxy = Either[DfConcreteAny, PinnedValue]
-  val empty = new EqualityMap(Map.empty, Map.empty, Map.empty)
+  val empty = new EqualityMap(Map.empty, Map.empty, Map.empty, Map.empty)
 }
