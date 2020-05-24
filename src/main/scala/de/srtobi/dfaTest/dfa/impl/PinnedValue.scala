@@ -10,6 +10,8 @@ final case class PinnedValue(anchor: Any)(val name: String) extends AnalysisEnti
     val normal = normalize(context).toString()
     s"$normal[$name]"
   }
+
+  override def toString: String = s"Pin($name)"
 }
 
 final case class UnionValue(value: DfAbstractAny, pinnedValues: Set[PinnedValue]) extends AnalysisEntity {

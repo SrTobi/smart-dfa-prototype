@@ -32,6 +32,8 @@ trait DfExternalEntity[-Context] {
 final case class DfExternalValue[-Context, +ExternalEntity <: DfExternalEntity[Context]](entity: ExternalEntity) extends DfValue[Context, ExternalEntity] {
   override def normalize(context: Context): DfAbstractAny = entity.normalize(context)
   override def toString(context: Context): String = entity.toString(context)
+
+  override def toString: String = entity.toString
 }
 
 sealed trait DfAbstractAny extends DfValue[Any, Nothing] {
@@ -55,8 +57,7 @@ object DfAbstractAny {
     (entities: IterableOnce[DfAbstractAny]) => DfValue.unify(entities)
 }
 
-case object DfNothing extends DfAbstractAny {
-  override def canBeAllOf(value: DfAbstractAny): Boolean = false
+case object DfNothing extends DfConcreteAny {
   override def truthValue: TruthValue = TruthValue.Bottom
 }
 
@@ -67,13 +68,10 @@ case object DfAny extends DfAbstractAny {
 
 sealed abstract class DfConcreteAny extends DfAbstractAny with DfVarOrValue {
   final override def canBeAllOf(value: DfAbstractAny): Boolean = this == value
-  def concreteTruthValue: Boolean
   override def isConcrete: Boolean = true
 }
 
-sealed abstract class DfConcreteAnyRef extends DfConcreteAny {
-  override def concreteTruthValue: true = true
-}
+sealed abstract class DfConcreteAnyRef extends DfConcreteAny
 
 class DfConcreteObjectRef extends DfConcreteAnyRef {
   override def truthValue: TruthValue = TruthValue.True
@@ -112,7 +110,6 @@ case object DfUndefined extends DfConcreteAnyVal {
   override def value: Type = ()
 
   override def truthValue: TruthValue = TruthValue.False
-  override def concreteTruthValue: false = false
 
   override def toString: String = "undefined"
 }
@@ -165,7 +162,6 @@ case object DfTrue extends DfConcreteBoolean {
   }
   override def couldBe(bool: Boolean): Boolean = bool
   override def truthValue: TruthValue = TruthValue.True
-  override def concreteTruthValue: true = true
   override def negative: DfFalse.type = DfFalse
 
   override def toString: String = "true"
@@ -181,7 +177,6 @@ case object DfFalse extends DfConcreteBoolean {
   }
   override def couldBe(bool: Boolean): Boolean = !bool
   override def truthValue: TruthValue = TruthValue.False
-  override def concreteTruthValue: false = false
   override def negative: DfTrue.type = DfTrue
 
   override def toString: String = "false"
@@ -200,8 +195,7 @@ case object DfInt extends DfAbstractInt {
 final case class DfConcreteInt(override val value: Int) extends DfConcreteAnyVal with DfAbstractInt {
   override type Type = Int
   override def toString: String = value.toString
-  override def truthValue: TruthValue = TruthValue(concreteTruthValue)
-  override def concreteTruthValue: Boolean = value != 0
+  override def truthValue: TruthValue = TruthValue(value != 0)
   override def unify(other: DfAbstractInt): DfAbstractInt = other match {
     case DfConcreteInt(`value`) => this
     case _ => DfInt
@@ -213,9 +207,7 @@ case class DfConcreteString(override val value: String) extends DfConcreteAnyVal
 
   override def toString: String = "\"%s\"".format(value)
 
-  override def truthValue: TruthValue = TruthValue(concreteTruthValue)
-
-  override def concreteTruthValue: Boolean = value != ""
+  override def truthValue: TruthValue = TruthValue(value != "")
 }
 
 case class DfAbstractUnion(values: Set[DfAbstractAny]) extends DfAbstractAny {

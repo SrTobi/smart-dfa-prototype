@@ -39,6 +39,14 @@ package object impl {
       case DfAE(other: PinnedValue) => Iterator(DfPinned(other))
       case abs: DfAbstractAny => Iterator(abs)
     }
+
+    def pins: Iterator[PinnedValue] = dfValue match {
+      case DfAE(union: UnionValue) => union.pinnedValues.iterator
+      case DfAE(other: PinnedValue) => Iterator(other)
+      case _: DfAbstractAny => Iterator.empty
+    }
+
+    def hasPins: Boolean = !dfValue.isInstanceOf[DfAbstractAny]
   }
 
   type DfPinned = dfa.DfValue[ExecutionState, PinnedValue]

@@ -2,15 +2,19 @@ package de.srtobi.dfaTest
 package dfa
 package impl
 
-import de.srtobi.dfaTest.dfa.impl.constraints.Constraint
-import de.srtobi.dfaTest.dfa.impl.constraints.Constraint._
+import de.srtobi.dfaTest.dfa.impl.constraints._
 
 import scala.annotation.tailrec
+import scala.collection.mutable
 
 trait Facts {
   def computedValues: Map[PinnedValue, DfAbstractAny]
 
+  def withView(pin: PinnedValue, constraint: Constraint): Facts
+  def withConditionalPin(pin: PinnedValue, value: DfValue, condition: Constraint): Facts
   def withConstraint(constraint: Constraint): Facts
+
+  def claimConstraint: Option[Constraint]
   def claim(value: DfValue): (Option[Facts], Option[Facts])
 
   def unify(other: Facts): Facts
@@ -18,15 +22,41 @@ trait Facts {
 
 
 object Facts {
-  val empty: Facts = FactsImpl(Map.empty, Set.empty)
+  val empty: Facts = FactsImpl(Map.empty, Map.empty, Set.empty)
 
   implicit val unifiable: Unifiable[Facts] =
     (entities: IterableOnce[Facts]) => entities.iterator.reduce(_ unify _)
 }
 
-case class FactsImpl(claims: Map[DfValue, Boolean], constraints: Set[Constraint]) extends Facts {
+sealed abstract class PinDef {
+  def toConstraint(target: PinnedValue): Constraint
+}
+object PinDef {
+  case class View(constraint: Constraint) extends PinDef {
+    override def toConstraint(target: PinnedValue): Constraint = {
+      ViewConstraint(target, constraint)
+    }
+  }
+  case class Conditional(value: DfValue, condition: Constraint) extends PinDef {
+    override def toConstraint(target: PinnedValue): Constraint = {
+      ConditionalConstraint(target, value, condition)
+    }
+  }
+}
+
+case class FactsImpl(claims: Map[DfValue, Boolean], pins: Map[PinnedValue, PinDef], constraints: Set[Constraint]) extends Facts {
+  override def withConditionalPin(pin: PinnedValue, value: DfValue, condition: Constraint): Facts =
+    copy(pins = pins + (pin -> PinDef.Conditional(value, condition)))
+  override def withView(pin: PinnedValue, constraint: Constraint): Facts =
+    copy(pins = pins + (pin -> PinDef.View(constraint)))
   override def withConstraint(constraint: Constraint): Facts =
     copy(constraints = constraints + constraint)
+
+  override def claimConstraint: Option[Constraint] =
+    AndConstraint.tryFrom(claims.iterator.map {
+      case (value, true) => TruthyConstraint(value)
+      case (value, false) => NotConstraint(TruthyConstraint(value))
+    }.toSet)
 
   override def claim(value: DfValue): (Option[Facts], Option[Facts]) = {
     val whenTrue = Some(copy(claims = claims + (value -> true)))
@@ -56,62 +86,79 @@ case class FactsImpl(claims: Map[DfValue, Boolean], constraints: Set[Constraint]
   }
 
   def buildPossibleEqualityMap(after: EqualityMap => Boolean): Boolean = {
-    def applyConstraint(constraint: Constraint, targetTruthValue: Boolean, equalities: EqualityMap)(after: EqualityMap => Boolean): Boolean = {
-      @tailrec
-      def applyDemand(demand: ConstraintDemand, equalities: EqualityMap, targetTruthValue: Boolean)(after: EqualityMap => Boolean): Boolean = {
-        demand match {
-          case InvertedDemand(inner) => applyDemand(inner, equalities, !targetTruthValue)(after)
-          case TruthyDemand(value) => applyValue(value, targetTruthValue, equalities)(after)
-          case EqualityDemand(a, b) => equalities.withEquality(a, b, targetTruthValue).fold(false)(after)
+    @tailrec
+    def applyConstraints(constraints: List[Constraint], initialEqualityMap: EqualityMap): Option[(EqualityMap, List[Constraint])] = {
+      var madeProgress = false
+      var equalityMap = initialEqualityMap
+      val unsatisfiedConstraints = {
+        val builder = mutable.Set.empty[Constraint]
+        val it = constraints.iterator
+        while (it.hasNext) {
+          val constraint = it.next()
+
+          constraint.applyConstraint(targetTruthValue = true, equalityMap) match {
+            case Constraint.Tautology =>
+            case Constraint.Applied(result) =>
+              equalityMap = result
+              madeProgress = true
+            case Constraint.TransformProgress(result, newConstraints) =>
+              equalityMap = result
+              madeProgress = true
+              builder += newConstraints
+            case Constraint.NoProgress =>
+              builder += constraint
+            case Constraint.Contradiction =>
+              return None
+          }
         }
+        builder.toList
       }
 
-      def applyDemands(demands: Seq[ConstraintDemand], equalities: EqualityMap)(after: EqualityMap => Boolean): Boolean = demands match {
-        case demand +: rest =>
-          applyDemand(demand, equalities, targetTruthValue = true)(
-            applyDemands(rest, _)(after)
-          )
-        case Seq() => after(equalities)
+      if (!madeProgress) Some(equalityMap -> unsatisfiedConstraints)
+      else applyConstraints(unsatisfiedConstraints, equalityMap)
+    }
+
+    def inner(constraints: List[Constraint], equalityMap: EqualityMap): Boolean = {
+      applyConstraints(constraints, equalityMap) match {
+        case None =>
+          false
+        case Some((equalityMap, Nil)) =>
+          after(equalityMap)
+        case Some((equalityMap, constraints)) =>
+          val constraintsWithGuesses = constraints
+            .map(c => c -> c.possibleGuesses(targetTruthValue = true, equalityMap))
+            .filter(_._2.nonEmpty)
+
+          val restConstraints = constraintsWithGuesses.map(_._1)
+
+          constraintsWithGuesses.minByOption(_._2.length) match {
+            case Some((orginalConstraint,guesses)) =>
+              guesses.exists {
+                case (guess, maybeConstraint) =>
+                  val newConstraints = restConstraints.flatMap {
+                      case `orginalConstraint` =>  maybeConstraint
+                      case other => Some(other)
+                    }
+                    .distinct
+
+                  inner(newConstraints, guess)
+              }
+            case None => after(equalityMap)
+          }
       }
-
-      constraint
-        .propagate(targetTruthValue)
-        .iterator
-        .exists(applyDemands(_, equalities)(after))
     }
 
-    def applyConstraints(constraints: Seq[Constraint], targetTruthValue: Boolean, equalities: EqualityMap)(after: EqualityMap => Boolean): Boolean = constraints match {
-      case next +: rest =>
-        applyConstraint(next, targetTruthValue, equalities)(
-          applyConstraints(rest, targetTruthValue, _)(after)
-        )
-      case Seq() => after(equalities)
-    }
 
-    def applyValue(value: DfValue, targetTruthValue: Boolean, equalities: EqualityMap)(after: EqualityMap => Boolean): Boolean = value match {
-      case normal: DfAbstractAny =>
-        normal.truthValue.canBe(targetTruthValue) && after(equalities)
-      case DfAE(ae) =>
-        ae match {
-          case pin: PinnedValue =>
-            equalities.withTruthValue(pin, targetTruthValue).fold(false)( em =>
-              if (em eq equalities) after(em)
-              else applyConstraints(constraints.filter(_.result == pin).toSeq, targetTruthValue, em)(after)
-            )
-          case union: UnionValue =>
-            union.values.exists(applyValue(_, targetTruthValue, equalities)(after))
+    val initialConstraints = (
+      constraints.iterator ++
+        pins.iterator.map { case (pin, d) => d.toConstraint(pin) } ++
+        claims.iterator.map {
+          case (v, true) => TruthyConstraint(v)
+          case (v, false) => NotConstraint(TruthyConstraint(v))
         }
-    }
+      ).distinct.toList
 
-    def applyClaims(claims: Seq[(DfValue, Boolean)], equalities: EqualityMap)(after: EqualityMap => Boolean): Boolean = claims match {
-      case (value, targetTruthValue) +: rest =>
-        applyValue(value, targetTruthValue, equalities)(
-          applyClaims(rest, _)(after)
-        )
-      case Seq() => after(equalities)
-    }
-
-    applyClaims(claims.toSeq, EqualityMap.empty)(after)
+    inner(initialConstraints, EqualityMap.empty)
   }
 
   override def unify(other: Facts): Facts = {
@@ -119,7 +166,13 @@ case class FactsImpl(claims: Map[DfValue, Boolean], constraints: Set[Constraint]
     val newClaims = claims.combineWith(o.claims) {
       (a, b) => if (a == b) Some(a) else None
     }
-    FactsImpl(newClaims, constraints | o.constraints)
+    val newPins = pins.mergeWith(o.pins) {
+      (a, b) =>
+        // todo: this is not correct in loops
+        assert(a == b)
+        a
+    }
+    FactsImpl(newClaims, newPins, constraints | o.constraints)
   }
 }
 
@@ -129,6 +182,37 @@ case class EqualityMap private(var parents: Map[PinnedValue, Proxy],
                                inequalities: Map[PinnedValue, Set[Proxy]],
                                abstractKnowledge: Map[PinnedValue, DfAbstractAny],
                                truthyKnowledge: Map[PinnedValue, Boolean]) {
+  def truthValueOf(value: DfValue): TruthValue = {
+    Unifiable.unify(value.dfPinnedValues.map {
+      case any: DfAbstractAny => any.truthValue
+      case DfPinned(pin) => truthValueOf(pin)
+    })
+  }
+
+  def normalize(value: DfValue): DfAbstractAny = Unifiable.unify(
+    value.dfPinnedValues.map {
+      case any: DfAbstractAny => any
+      case DfPinned(pin) => findProxy(pin).fold(identity, abstractValuesOf)
+    }
+  )
+
+  def equalityKnowledge(pin: PinnedValue, other: DfValue): TruthValue = {
+    lazy val normalizedOther = normalize(other)
+    findProxy(pin) match {
+      case Left(concrete) =>
+        val intersects = concrete intersects normalizedOther
+        if (!intersects) TruthValue.False
+        else if (normalizedOther.isConcrete) TruthValue(intersects)
+        else TruthValue.Top
+      case Right(pin) =>
+        other match {
+          case DfPinned(otherPin) if pin == otherPin => TruthValue.True
+          case _ if (abstractValuesOf(pin) intersects normalizedOther) => TruthValue.Top
+          case _ => TruthValue.False
+        }
+    }
+  }
+
   def concreteValues: Map[PinnedValue, DfAbstractAny] = {
     (parents.keys ++ abstractKnowledge.keySet)
       .map(k => findProxy(k).fold(k -> _, k -> abstractValuesOf(_)))
@@ -243,9 +327,12 @@ case class EqualityMap private(var parents: Map[PinnedValue, Proxy],
   private def withMergedProxies(newProxy: Proxy, other: PinnedValue): EqualityMap = {
     assert(isProxy(newProxy))
     assert(isProxy(other))
-    assert(truthValueOf(newProxy) overlaps truthValueOf(Right(other)))
-    val intersection = abstractValuesOf(newProxy) intersect abstractValuesOf(other)
-    assert(!intersection.isNothing)
+    assert(truthValueOf(newProxy) <= truthValueOf(Right(other)))
+    def intersection = {
+      val intersection = abstractValuesOf(newProxy) intersect abstractValuesOf(other)
+      assert(!intersection.isNothing)
+      intersection
+    }
 
     copy(
       parents = parents + (other -> newProxy),
@@ -262,8 +349,10 @@ case class EqualityMap private(var parents: Map[PinnedValue, Proxy],
             }
           },
       abstractKnowledge =
-        if (intersection == DfAny) abstractKnowledge
-        else newProxy.fold(_ => abstractKnowledge, pin => abstractKnowledge + (pin -> intersection)),
+        newProxy.fold(_ => abstractKnowledge, pin =>
+          if (intersection == DfAny) abstractKnowledge
+          else abstractKnowledge + (pin -> intersection)
+        ),
       truthyKnowledge =
         newProxy.toOption
           .zip(truthyKnowledge.get(other))
@@ -280,8 +369,11 @@ case class EqualityMap private(var parents: Map[PinnedValue, Proxy],
     proxy.fold(identity, abstractValuesOf)
 
   private def truthValueOf(proxy: PinnedValue): TruthValue = {
-    isProxy(proxy)
-    TruthValue(truthyKnowledge.get(proxy))
+    assert(isProxy(proxy))
+    val fromAbstractKnowledge = abstractKnowledge.get(proxy).fold(TruthValue.Top: TruthValue)(_.truthValue)
+    val fromTruthyKnowledge = TruthValue(truthyKnowledge.get(proxy))
+    assert(fromAbstractKnowledge overlaps fromTruthyKnowledge)
+    fromAbstractKnowledge unify fromTruthyKnowledge
   }
 
   private def truthValueOf(proxy: Proxy): TruthValue = proxy match {
@@ -323,4 +415,8 @@ case class EqualityMap private(var parents: Map[PinnedValue, Proxy],
 object EqualityMap {
   private type Proxy = Either[DfConcreteAny, PinnedValue]
   val empty = new EqualityMap(Map.empty, Map.empty, Map.empty, Map.empty)
+
+  case class Info(truthValue: TruthValue = TruthValue.Top,
+                  inequalities: Set[PinnedValue] = Set.empty,
+                  value: DfAbstractAny = DfAny)
 }

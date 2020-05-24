@@ -2,14 +2,12 @@ package de.srtobi.dfaTest
 package dfa
 package impl
 
-import de.srtobi.dfaTest.dfa.impl.constraints.Constraint
-
 case class ExecutionState(variables: Map[DfVariable, DfValue], facts: Facts) {
   def withStore(variable: DfVariable, value: DfValue): ExecutionState =
     this.copy(variables = variables + (variable -> value))
 
-  def withConstraint(constraint: Constraint): ExecutionState =
-    this.copy(facts = facts.withConstraint(constraint))
+  def withFact(f: Facts => Facts): ExecutionState =
+    this.copy(facts = f(facts))
 
   def resolve(entity: DfVarOrValue): DfValue = entity match {
     case v: DfVariable => variables.getOrElse(v, DfUndefined)

@@ -3,24 +3,22 @@ package dfa
 package impl
 package constraints
 
-import de.srtobi.dfaTest.dfa.impl.constraints.Constraint.ConstraintDemand
+import de.srtobi.dfaTest.dfa.impl.constraints.Constraint.ApplicationResult
 
 trait Constraint {
-  def result: PinnedValue
+  //def result: PinnedValue
   //def mkString(arguments: Seq[DfValue]): String
   //def evaluate(arguments: Seq[DfValue]): DfValue
 
-  def propagate(targetTruthValue: Boolean): IterableOnce[Seq[ConstraintDemand]]
+  def applyConstraint(targetTruthValue: Boolean, equalityMap: EqualityMap): ApplicationResult
+  def possibleGuesses(targetTruthValue: Boolean, equalityMap: EqualityMap): Seq[(EqualityMap, Option[Constraint])]
 }
 
 object Constraint {
-  sealed trait ConstraintDemand
-  case class TruthyDemand(value: DfPinned) extends ConstraintDemand
-  case class EqualityDemand(a: DfPinned, b: DfPinned) extends ConstraintDemand
-  case class InvertedDemand(inner: ConstraintDemand) extends ConstraintDemand
-
-  object InvertedDemand {
-    def invertIf(cond: Boolean)(inner: ConstraintDemand): ConstraintDemand =
-      if (cond) InvertedDemand(inner) else inner
-  }
+  sealed abstract class ApplicationResult
+  case object Tautology extends ApplicationResult
+  case class Applied(equalityMap: EqualityMap) extends ApplicationResult
+  case class TransformProgress(equalityMap: EqualityMap, newConstraint: Constraint) extends ApplicationResult
+  case object NoProgress extends ApplicationResult
+  case object Contradiction extends ApplicationResult
 }

@@ -1,5 +1,7 @@
 package de.srtobi
 
+import de.srtobi.dfaTest.dfa.Unifiable
+
 package object dfaTest {
   implicit class MapOps[K, V](private val map: Map[K, V]) extends AnyVal {
     def mergeWith(other: Map[K, V])(mergeF: (V, V) => V): Map[K, V] =
@@ -21,5 +23,14 @@ package object dfaTest {
           case (_, _) => throw new AssertionError("Should not be possible")
         }).map(key -> _)
       }.toMap
+  }
+
+  implicit class UnifiableExt[T: Unifiable](private val target: T) {
+    def unify(other: T): T = Unifiable.unify(target, other)
+    def unify(others: IterableOnce[T]): T = Unifiable.unify(Iterator(target) ++ others.iterator)
+  }
+
+  implicit class BooleanExt(private val target: Boolean) {
+    def ==>(other: Boolean): Boolean = !target || other
   }
 }

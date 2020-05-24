@@ -23,10 +23,25 @@ class DataFlowAnalysisImpl(stdLib: Seq[(String, DfConcreteAny)] = DataFlowAnalys
     instructions.entryInstruction -> ExecutionState.from(stdLib ++ input)
 
   override def process(instruction: InstructionPtr, states: Iterable[State]): Seq[(InstructionPtr, State)] = try {
+    var instructionPinUsed = false
+    def instructionPin(name: String): PinnedValue = {
+      assert(!instructionPinUsed)
+      instructionPinUsed = true
+      PinnedValue(instruction)(name)
+    }
+
     implicit class ExecutionStateExt(val executionState: ExecutionState) {
-      def withConstraint(constraintF: PinnedValue => Constraint, name: String): (PinnedValue, ExecutionState) = {
-        val pin = PinnedValue(instruction)(name)
-        pin -> executionState.withConstraint(constraintF(pin))
+      def withView(constraint: Constraint, name: String): (PinnedValue, ExecutionState) = {
+        val pin = instructionPin(name)
+        pin -> executionState.withFact(_.withView(pin, constraint))
+      }
+
+      def withConditionalStore(target: DfVariable, value: DfValue, condition: Constraint, name: String): ExecutionState = {
+        val pin = instructionPin(name)
+        executionState.copy(
+          variables = executionState.variables + (target -> DfPinned(pin)),
+          facts = executionState.facts.withConditionalPin(pin, value, condition)
+        )
       }
     }
 
@@ -42,7 +57,18 @@ class DataFlowAnalysisImpl(stdLib: Seq[(String, DfConcreteAny)] = DataFlowAnalys
         return Seq.empty
 
       case cfg.Mov(target, source) =>
-        state.withStore(target, load(source))
+        val s = load(source)
+        target match {
+          case reg: DfRegister =>
+            state.withStore(target, s)
+          case v: DfLocalVariable =>
+            state.facts.claimConstraint match {
+              case Some(claimConstraint) =>
+                state.withConditionalStore(target, s, claimConstraint, s"($target = $source) if $claimConstraint")
+              case None =>
+                state.withStore(target, s)
+            }
+        }
 
       case cfg.New(target) =>
         val ref = allocationSites.getOrElseUpdate(instruction, new DfConcreteObjectRef)
@@ -55,7 +81,7 @@ class DataFlowAnalysisImpl(stdLib: Seq[(String, DfConcreteAny)] = DataFlowAnalys
         val lhs = load(lhsSource)
         val rhs = load(rhsSource)
         val (pin, result) = op match {
-          case "==" => state.withConstraint(EqualityConstraint(_, lhs, rhs), s"$lhs == $rhs")
+          case "==" => state.withView(EqualityConstraint(lhs, rhs), s"$lhsSource == $rhsSource")
           //case "+" => state.withPinnedStore(target, AdditionConstraint, lhs, rhs)
           case _ => ???
         }

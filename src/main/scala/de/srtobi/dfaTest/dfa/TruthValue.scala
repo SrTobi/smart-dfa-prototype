@@ -7,18 +7,26 @@ sealed abstract class TruthValue(val canBeTrue: Boolean, val canBeFalse: Boolean
 
   def overlaps(other: TruthValue): Boolean =
     canBeTrue && other.canBeTrue || canBeFalse && other.canBeFalse
+
+  def <=(other: TruthValue): Boolean =
+    canBeTrue ==> other.canBeTrue && canBeFalse ==> other.canBeFalse
+
 }
 object TruthValue {
+  sealed trait ConcreteTruthValue extends TruthValue
+
+  case object Top extends TruthValue(true, true)
+  case object True extends TruthValue(true, false) with ConcreteTruthValue
+  case object False extends TruthValue(false, true) with ConcreteTruthValue
+  case object Bottom extends TruthValue(false, false)
+
   def apply(bool: Boolean): TruthValue =
     if (bool) True else False
 
   def apply(bool: Option[Boolean]): TruthValue =
     bool.fold(Top: TruthValue)(TruthValue(_))
 
-  case object Top extends TruthValue(true, true)
-  case object True extends TruthValue(true, false)
-  case object False extends TruthValue(false, true)
-  case object Bottom extends TruthValue(false, false)
+  def unapply(concrete: ConcreteTruthValue): Some[Boolean] = Some(concrete.canBeTrue)
 
   implicit val unifiable: Unifiable[TruthValue] =
     (entities: IterableOnce[TruthValue]) => {
