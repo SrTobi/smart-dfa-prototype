@@ -221,7 +221,7 @@ case class DfAbstractUnion(values: Set[DfAbstractAny]) extends DfAbstractAny {
   override def truthValue: TruthValue = TruthValue.unifiable.unify(values.iterator.map(_.truthValue))
   override def canBeAllOf(value: DfAbstractAny): Boolean = ???
 
-  override def toString: String = values.mkString("Union(", " | ", ")")
+  override def toString: String = values.mkString("Union[", " | ", "]")
 }
 
 object DfValue {

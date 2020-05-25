@@ -120,6 +120,11 @@ class CfgBuilder {
     this
   }
 
+  def unify(maybeRet: Option[DfVariable], elementEntities: Seq[DfVarOrValue]): this.type = {
+    newInstr(new Unify(maybeRet, elementEntities))
+    this
+  }
+
   def jumpTo(target: BuildLabel): this.type = {
     newInstr(new Jump(target))
     this

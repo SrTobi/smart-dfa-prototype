@@ -29,4 +29,7 @@ final case class UnionValue(value: DfAbstractAny, pinnedValues: Set[PinnedValue]
     val strs = value.withoutNothing.map(_.toString()) ++ pinnedValues.map(_.name)
     s"$normal[${strs.mkString(" + ")}]"
   }
+
+  override def toString: String =
+    (Some(value).filterNot(_.isNothing) ++ pinnedValues.iterator.map(DfAE.apply)).mkString("Union[", " | ", "]")
 }

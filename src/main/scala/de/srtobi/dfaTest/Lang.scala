@@ -16,6 +16,7 @@ object Ast {
   case class BooleanLit(value: Boolean) extends Expression
   case class NumberLit(value: Int) extends Expression
   case class Identifier(name: String) extends Expression
+  case class Union(elements: Seq[Expression]) extends Expression
   case class Object(properties: Seq[Property]) extends Expression
   case class Property(name: String, init: Expression) extends Node
   case class Operator(op: String, left: Expression, right: Expression) extends Expression
@@ -121,7 +122,8 @@ object LangParser {
       stringLiteral.map(Ast.StringLiteral) |
       ("(" ~ identifierName.rep(sep=",") ~ ")" ~ "=>" ~ blockOrReturnExpression).map((Ast.Function.apply _).tupled) |
       ("(" ~/ expression ~ ")") |
-      ("{" ~/ property.rep(sep=",") ~ "}").map(Ast.Object)
+      ("{" ~/ property.rep(sep=",") ~ "}").map(Ast.Object) |
+      ("[" ~/ primaryExpression.rep(sep="|") ~ "]").map(Ast.Union.apply)
   )
 
   private def makeInner[_: P](left: Ast.Expression): P[Ast.Expression] = P(
@@ -228,6 +230,7 @@ object LangPrinter {
       case Call(base, args) => p(base) + args.map(p).mkString("(", ",", ")")
       case Operator(op, left, right) => s"(${p(left)} $op ${p(right)})"
       case PropertyAccess(base, property) => s"${p(base)}.$property"
+      case Union(elements) => elements.map(p).mkString("[", " | ", "]")
       case UndefinedLiteral => "undefined"
     }
   }

@@ -172,6 +172,8 @@ class Interpreter(scriptCfg: ControlFlowGraph, stdLib: Seq[(String, DfConcreteAn
                 throw new Exception("Cannot debug with abstract values in interpreter")
             }
         }
+      case cfg.Unify(_, _) =>
+        throw new UnsupportedOperationException
     }
   }
 }

@@ -96,6 +96,12 @@ object CfgTransformer {
     case Ast.Identifier(name) =>
       rreq.satisfy(builder.resolveVariable(name))
 
+    case Ast.Union(elements) =>
+      val elementEntities = elements.map(transformExpr(_, RequireResult).get)
+      val (maybeRet, result) = rreq.tryPin()
+      builder.unify(maybeRet, elementEntities)
+      result
+
     case Ast.Object(props) =>
       val obj = builder.newRegister()
       builder.instantiate(obj)

@@ -111,16 +111,16 @@ class DataFlowAnalysisImpl(stdLib: Seq[(String, DfConcreteAny)] = DataFlowAnalys
               case Expectation.VarOrValue(varOrValue) =>
                 val expected = load(varOrValue)
                 if (actual.normalize(state) != expected) {
-                  println(s"Assertion '$exprText' in line $line failed ($actual != $expected)")
+                  reportDebugError(s"Assertion '$exprText' in line $line failed ($actual != $expected)")
                 }
               case Expectation.SubclassOf(expectedClass) =>
                 val actualClass = actual.normalize(state).getClass
                 if (!expectedClass.isAssignableFrom(actualClass)) {
-                  println(s"Assertion '$exprText' in line $line failed ($actualClass ⊂ $expectedClass)")
+                  reportDebugError(s"Assertion '$exprText' in line $line failed ($actualClass ⊂ $expectedClass)")
                 }
               case Expectation.Value(expected) =>
                 if (actual.normalize(state) != expected) {
-                  println(s"Assertion '$exprText' in line $line failed ($actual != $expected)")
+                  reportDebugError(s"Assertion '$exprText' in line $line failed ($actual != $expected)")
                 }
             }
 
@@ -146,12 +146,16 @@ class DataFlowAnalysisImpl(stdLib: Seq[(String, DfConcreteAny)] = DataFlowAnalys
         ???
       case cfg.WriteProp(_, _, _) =>
         ???
+      case cfg.Unify(target, elements) =>
+        target.fold(state)(state.withStore(_, DfValue.unify(elements.map(load))))
     }
     Seq(instruction.nextInstruction -> nextState)
   } catch {
     case NonFatal(e) =>
       throw new Exception(s"Exception while processing '$instruction' in ${instruction.lineNumber}: '" + e.getMessage, e)
   }
+
+  protected def reportDebugError(msg: String): Unit = println(msg)
 }
 
 object DataFlowAnalysisImpl {
@@ -179,12 +183,12 @@ object DfaTest {
         | b = "c"
         |}
         |
-        |debug.print(a)
+        |debug(a is ["a" | "c"])
         |debug.print(x)
         |
         |if (a == b) {
-        |  debug.print(a)
-        |  debug.print(x)
+        |  debug(a is "b")
+        |  debug(x is 3)
         |}
         |
         |""".stripMargin

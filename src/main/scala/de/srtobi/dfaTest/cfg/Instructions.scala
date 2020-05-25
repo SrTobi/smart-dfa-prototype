@@ -260,6 +260,32 @@ object WriteProp extends Instruction.Info("WriteProp") {
 }
 
 
+//*********************************** Unify ***********************************//
+final class Unify private[cfg](val target: Option[DfVariable],
+                               val elements: Seq[DfVarOrValue]) extends Instruction {
+
+  override def sourceEntities: Seq[DfVarOrValue] = elements
+  override def variables: Seq[DfVariable] = target.toSeq
+
+  override def asmString: String = {
+    val builder = new StringBuilder
+
+    target.foreach { ret =>
+      builder.append(Instruction.asmAssignmentPrefix(ret))
+    }
+
+    builder.append(elements.mkString("[", " | ", "]"))
+
+    builder.toString()
+  }
+
+  override def info: Instruction.Info = Call
+}
+
+object Unify extends Instruction.Info("Unify") {
+  def unapply(call: Unify): Some[(Option[DfVariable], Seq[DfVarOrValue])] = Some((call.target, call.elements))
+}
+
 //*********************************** Debug ***********************************//
 final class Debug private[cfg](val checks: Seq[Debug.Check]) extends Instruction {
   override def sourceEntities: Seq[DfVarOrValue] = Seq()
