@@ -14,6 +14,16 @@ package object dfaTest {
         })
       }.toMap
 
+    def mergeWithOtherDefaulting(other: Map[K, V], default: V)(mergeF: (V, V) => V): Map[K, V] =
+      (map.keySet | other.keySet).iterator.map { key =>
+        key -> ((map.get(key), other.get(key)) match {
+          case (Some(a), Some(b)) => mergeF(a, b)
+          case (Some(a), _) => mergeF(a, default)
+          case (_, Some(b)) => b
+          case (_, _) => throw new AssertionError("Should not be possible")
+        })
+      }.toMap
+
     def combineWith(other: Map[K, V])(mergeF: (V, V) => Option[V]): Map[K, V] =
       (map.keySet | other.keySet).iterator.flatMap { key =>
         ((map.get(key), other.get(key)) match {

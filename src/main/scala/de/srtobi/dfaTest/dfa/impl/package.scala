@@ -34,6 +34,13 @@ package object impl {
 
   implicit class DfValueOps(private val dfValue: DfValue) extends AnyVal {
     def unify(other: DfValue*): DfValue = DfValue.unify(dfValue +: other)
+
+    def toDfPinned: Option[DfPinned] = dfValue match {
+      case DfAE(pin: PinnedValue) => Some(DfPinned(pin))
+      case any: DfAbstractAny => Some(any)
+      case _ => None
+    }
+
     def dfPinnedValues: Iterator[DfPinned] = dfValue match {
       case DfAE(union: UnionValue) => union.values
       case DfAE(other: PinnedValue) => Iterator(DfPinned(other))
@@ -44,6 +51,12 @@ package object impl {
       case DfAE(union: UnionValue) => union.pinnedValues.iterator
       case DfAE(other: PinnedValue) => Iterator(other)
       case _: DfAbstractAny => Iterator.empty
+    }
+
+    def deconstruct: (DfAbstractAny, Iterator[PinnedValue]) = dfValue match {
+      case DfAE(UnionValue(any, pinnedValues)) => (any, pinnedValues.iterator)
+      case DfAE(other: PinnedValue) => (DfNothing, Iterator(other))
+      case any: DfAbstractAny => (any, Iterator.empty)
     }
 
     def hasPins: Boolean = !dfValue.isInstanceOf[DfAbstractAny]

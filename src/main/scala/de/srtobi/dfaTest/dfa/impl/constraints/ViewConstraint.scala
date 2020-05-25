@@ -30,9 +30,10 @@ case class ViewConstraint(target: PinnedValue, constraint: Constraint) extends C
     }
   }
 
-  override def possibleGuesses(targetTruthValue: Boolean, equalityMap: EqualityMap): Seq[(EqualityMap, Option[Constraint])] =
+  override def possibleGuesses(targetTruthValue: Boolean, equalityMap: EqualityMap): Option[Seq[(EqualityMap, Option[Constraint])]] = Some(
     for {
       bool <- Seq(true, false)
       result <- equalityMap.withTruthValue(target, bool)
     } yield result -> Some(if (bool == targetTruthValue) constraint else NotConstraint(constraint))
+  )
 }

@@ -23,7 +23,7 @@ case class ConditionalConstraint(target: PinnedValue, value: DfValue, condition:
           case None => Contradiction
         }
       case _ =>
-        equalityMap.equalityKnowledge(target, value) match {
+        equalityMap.isEqual(target, value) match {
           case TruthValue.True => TransformProgress(equalityMap, condition)
           case TruthValue.False => TransformProgress(equalityMap, NotConstraint(condition))
           case _ => NoProgress
@@ -31,7 +31,7 @@ case class ConditionalConstraint(target: PinnedValue, value: DfValue, condition:
     }
   }
 
-  override def possibleGuesses(targetTruthValue: Boolean, equalityMap: EqualityMap): Seq[(EqualityMap, Option[Constraint])] = {
+  override def possibleGuesses(targetTruthValue: Boolean, equalityMap: EqualityMap): Option[Seq[(EqualityMap, Option[Constraint])]] = {
     assert(targetTruthValue)
 
     val falseIt =
@@ -43,6 +43,6 @@ case class ConditionalConstraint(target: PinnedValue, value: DfValue, condition:
     val trueIt =
       Iterator(equalityMap -> Some(AndConstraint(equalityConstraint, condition)))
 
-    (trueIt ++ falseIt).toSeq
+    Some((trueIt ++ falseIt).toSeq)
   }
 }

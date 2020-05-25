@@ -45,6 +45,7 @@ sealed trait DfAbstractAny extends DfValue[Any, Nothing] {
   final override def normalize(context: Any): this.type = this
   final override def toString(context: Any): String = this.toString()
 
+  def <=(other: DfAbstractAny): Boolean = DfValue.intersect(this, other) == this
   def intersect(other: DfAbstractAny): DfAbstractAny = DfValue.intersect(this, other)
   def intersects(other: DfAbstractAny): Boolean = (this intersect other) != DfNothing
   def canBeAllOf(value: DfAbstractAny): Boolean
@@ -57,8 +58,10 @@ object DfAbstractAny {
     (entities: IterableOnce[DfAbstractAny]) => DfValue.unify(entities)
 }
 
-case object DfNothing extends DfConcreteAny {
+case object DfNothing extends DfAbstractAny {
   override def truthValue: TruthValue = TruthValue.Bottom
+
+  override def canBeAllOf(value: DfAbstractAny): Boolean = false
 }
 
 case object DfAny extends DfAbstractAny {
@@ -230,6 +233,8 @@ object DfValue {
   def boolean(value: Boolean): DfConcreteBoolean = DfConcreteBoolean(value)
 
   def undefined: DfUndefined.type = DfUndefined
+
+  val negativeValue: DfAbstractAny = unify(undefined, int(0), DfFalse)
 
   def unify(first: DfAbstractAny, rest: DfAbstractAny*): DfAbstractAny = unify(first +: rest)
   def unify(values: IterableOnce[DfAbstractAny]): DfAbstractAny = {

@@ -12,6 +12,6 @@ case class NotConstraint(inner: Constraint) extends Constraint {
 
   override def applyConstraint(targetTruthValue: Boolean, equalityMap: EqualityMap): ApplicationResult =
     inner.applyConstraint(!targetTruthValue, equalityMap)
-  override def possibleGuesses(targetTruthValue: Boolean, equalityMap: EqualityMap): Seq[(EqualityMap, Option[Constraint])] =
+  override def possibleGuesses(targetTruthValue: Boolean, equalityMap: EqualityMap): Option[Seq[(EqualityMap, Option[Constraint])]] =
     inner.possibleGuesses(!targetTruthValue, equalityMap)
 }

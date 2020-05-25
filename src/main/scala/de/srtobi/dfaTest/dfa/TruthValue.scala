@@ -1,11 +1,20 @@
 package de.srtobi.dfaTest
 package dfa
 
+import de.srtobi.dfaTest.dfa.TruthValue._
+
 sealed abstract class TruthValue(val canBeTrue: Boolean, val canBeFalse: Boolean) {
   def canBe(bool: Boolean): Boolean =
     if (bool) canBeTrue else canBeFalse
 
-  def overlaps(other: TruthValue): Boolean =
+  def intersect(other: TruthValue): TruthValue = (this, other) match {
+    case (a, Top) => a
+    case (Top, b) => b
+    case (a, b) if a == b => a
+    case _ => Bottom
+  }
+
+  def intersects(other: TruthValue): Boolean =
     canBeTrue && other.canBeTrue || canBeFalse && other.canBeFalse
 
   def <=(other: TruthValue): Boolean =

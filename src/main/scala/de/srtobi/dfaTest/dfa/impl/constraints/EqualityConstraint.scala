@@ -24,16 +24,28 @@ case class EqualityConstraint(lhs: DfValue, rhs: DfValue) extends Constraint {
       }
       if (currentEqualityMap eq equalityMap) Tautology
       else Applied(currentEqualityMap)
-    } else NoProgress
+    } else {
+      val result =
+        lhs.toDfPinned.zip(rhs.toDfPinned) match {
+          case Some((a, b)) => equalityMap.withEquality(a, b)
+          case None =>
+            val l = equalityMap.normalize(lhs)
+            val r = equalityMap.normalize(rhs)
+            val intersection = l intersect r
+            equalityMap
+              .withUpperBound(lhs, intersection)
+              .flatMap(_.withUpperBound(rhs, intersection))
+        }
+
+        result.fold(Contradiction: ApplicationResult) {
+          newEqualityMap =>
+            if (newEqualityMap eq equalityMap) NoProgress
+            else TransformProgress(newEqualityMap, this)
+        }
+    }
   }
 
-  override def possibleGuesses(targetTruthValue: Boolean, equalityMap: EqualityMap): Seq[(EqualityMap, Option[Constraint])] =
-    (
-      for {
-        a <- lhs.dfPinnedValues
-        b <- rhs.dfPinnedValues
-        result <- equalityMap.withEquality(a, b, targetTruthValue)
-        if result ne equalityMap
-      } yield result -> None
-    ).toSeq
+  override def possibleGuesses(targetTruthValue: Boolean, equalityMap: EqualityMap): Option[Seq[(EqualityMap, Option[Constraint])]] = {
+    None
+  }
 }

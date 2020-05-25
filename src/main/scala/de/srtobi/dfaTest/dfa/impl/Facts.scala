@@ -8,7 +8,7 @@ import scala.annotation.tailrec
 import scala.collection.mutable
 
 trait Facts {
-  def computedValues: Map[PinnedValue, DfAbstractAny]
+  def computedValues(necessaryValues: Seq[DfValue]): Map[PinnedValue, DfAbstractAny]
 
   def withView(pin: PinnedValue, constraint: Constraint): Facts
   def withConditionalPin(pin: PinnedValue, value: DfValue, condition: Constraint): Facts
@@ -70,14 +70,20 @@ case class FactsImpl(claims: Map[DfValue, Boolean], pins: Map[PinnedValue, PinDe
     else (None, Some(this))
   }
 
-  override def computedValues: Map[PinnedValue, DfAbstractAny] = {
+  override def computedValues(necessaryValues: Seq[DfValue]): Map[PinnedValue, DfAbstractAny] = {
     var result = Map.empty[PinnedValue, DfAbstractAny]
     buildPossibleEqualityMap {
-      map =>
-        result = result.mergeWith(map.concreteValues)(_ unify _)
+      map => {
+        if (necessaryValues.forall(!map.isNothing(_))) {
+          print("")
+          result = result.mergeWithOtherDefaulting(map.concreteValues, DfAny)(_ unify _)
+        } else {
+          print("")
+        }
         false
+      }
     }
-    result
+    result.toMap
   }
 
   def isContradiction: Boolean = {
@@ -126,16 +132,14 @@ case class FactsImpl(claims: Map[DfValue, Boolean], pins: Map[PinnedValue, PinDe
           after(equalityMap)
         case Some((equalityMap, constraints)) =>
           val constraintsWithGuesses = constraints
-            .map(c => c -> c.possibleGuesses(targetTruthValue = true, equalityMap))
+            .flatMap(c => c.possibleGuesses(targetTruthValue = true, equalityMap).map(c -> _))
             .filter(_._2.nonEmpty)
-
-          val restConstraints = constraintsWithGuesses.map(_._1)
 
           constraintsWithGuesses.minByOption(_._2.length) match {
             case Some((orginalConstraint,guesses)) =>
               guesses.exists {
                 case (guess, maybeConstraint) =>
-                  val newConstraints = restConstraints.flatMap {
+                  val newConstraints = constraints.flatMap {
                       case `orginalConstraint` =>  maybeConstraint
                       case other => Some(other)
                     }
@@ -143,7 +147,8 @@ case class FactsImpl(claims: Map[DfValue, Boolean], pins: Map[PinnedValue, PinDe
 
                   inner(newConstraints, guess)
               }
-            case None => after(equalityMap)
+            case None =>
+              after(equalityMap)
           }
       }
     }

@@ -64,7 +64,7 @@ class DataFlowAnalysisImpl(stdLib: Seq[(String, DfConcreteAny)] = DataFlowAnalys
           case v: DfLocalVariable =>
             state.facts.claimConstraint match {
               case Some(claimConstraint) =>
-                state.withConditionalStore(target, s, claimConstraint, s"($target = $source) if $claimConstraint")
+                state.withConditionalStore(target, s, claimConstraint, s"[$target = $source]")
               case None =>
                 state.withStore(target, s)
             }
@@ -166,10 +166,11 @@ object DfaTest {
   def main(args: Array[String]): Unit = {
     val code =
       """
-        |if (rand()) {
-        | a = "a"
-        |} else {
+        |x = rand()
+        |if (x == 3) {
         | a = "b"
+        |} else {
+        | a = "a"
         |}
         |
         |if (rand()) {
@@ -177,15 +178,15 @@ object DfaTest {
         |} else {
         | b = "c"
         |}
-        |//debug.print(a)
-        |//debug.print(b)
+        |
+        |debug.print(a)
+        |debug.print(x)
         |
         |if (a == b) {
         |  debug.print(a)
-        |  debug.print(b)
+        |  debug.print(x)
         |}
-        |debug.print(a)
-        |debug.print(b)
+        |
         |""".stripMargin
     val cfg = CfgTransformer.transformScript(LangParser.parse(code))
     println(cfg.asmText())

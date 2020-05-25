@@ -35,7 +35,7 @@ case class AndConstraint(conjunctions: Set[Constraint]) extends Constraint {
           if (resultEqualityMap eq equalityMap) Tautology
           else Applied(resultEqualityMap)
         AndConstraint.tryFrom(transformed)
-          .fold(withOutNewConstraints)(TransformProgress(equalityMap, _))
+          .fold(withOutNewConstraints)(TransformProgress(resultEqualityMap, _))
       }
     } else {
       var hadOnlyTautology = true
@@ -52,22 +52,30 @@ case class AndConstraint(conjunctions: Set[Constraint]) extends Constraint {
     }
   }
 
-  override def possibleGuesses(targetTruthValue: Boolean, equalityMap: EqualityMap): Seq[(EqualityMap, Option[Constraint])] = {
+  override def possibleGuesses(targetTruthValue: Boolean, equalityMap: EqualityMap): Option[Seq[(EqualityMap, Option[Constraint])]] = {
     if (targetTruthValue) {
       val result = Seq.newBuilder[(EqualityMap, Option[Constraint])]
+      var hadNew = false
 
       def inner(rest: List[Constraint], equalityMap: EqualityMap, newConstraints: Set[Constraint]): Unit = rest match {
         case next :: rest =>
-          for ((resultEqualityMap, newConstraint) <- next.possibleGuesses(targetTruthValue, equalityMap))
-            inner(rest, resultEqualityMap, newConstraints ++ newConstraint)
+          next.possibleGuesses(targetTruthValue, equalityMap) match {
+            case Some(guesses) =>
+              hadNew = true
+              for ((resultEqualityMap, newConstraint) <- guesses)
+                inner(rest, resultEqualityMap, newConstraints ++ newConstraint)
+            case None =>
+              inner(rest, equalityMap, newConstraints + next)
+          }
         case Nil =>
           result += (equalityMap -> AndConstraint.tryFrom(newConstraints))
       }
 
       inner(conjunctions.toList, equalityMap, Set.empty)
-      result.result()
+      if (hadNew) Some(result.result())
+      else None
     } else {
-      conjunctions.iterator.flatMap(_.possibleGuesses(targetTruthValue, equalityMap)).toSeq
+      Some(conjunctions.iterator.flatMap(c => c.possibleGuesses(targetTruthValue, equalityMap).getOrElse(Seq(equalityMap -> Some(c)))).toSeq)
     }
   }
 }

@@ -11,7 +11,7 @@ trait Constraint {
   //def evaluate(arguments: Seq[DfValue]): DfValue
 
   def applyConstraint(targetTruthValue: Boolean, equalityMap: EqualityMap): ApplicationResult
-  def possibleGuesses(targetTruthValue: Boolean, equalityMap: EqualityMap): Seq[(EqualityMap, Option[Constraint])]
+  def possibleGuesses(targetTruthValue: Boolean, equalityMap: EqualityMap): Option[Seq[(EqualityMap, Option[Constraint])]]
 }
 
 object Constraint {

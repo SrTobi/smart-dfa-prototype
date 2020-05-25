@@ -20,10 +20,12 @@ case class TruthyConstraint(value: DfValue) extends Constraint {
     }
   }
 
-  override def possibleGuesses(targetTruthValue: Boolean, equalityMap: EqualityMap): Seq[(EqualityMap, Option[Constraint])] = (
-    for {
-      pin <- value.pins
-      result <- equalityMap.withTruthValue(pin, targetTruthValue)
-    } yield result -> None
-  ).toSeq
+  override def possibleGuesses(targetTruthValue: Boolean, equalityMap: EqualityMap): Option[Seq[(EqualityMap, Option[Constraint])]] = Some(
+    (
+      for {
+        pin <- value.pins
+        result <- equalityMap.withTruthValue(pin, targetTruthValue)
+      } yield result -> None
+    ).toSeq
+  )
 }
