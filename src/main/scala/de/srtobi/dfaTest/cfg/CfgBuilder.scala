@@ -16,6 +16,8 @@ class CfgBuilder {
   private val stringLiteralCache = mutable.Map.empty[String, DfConcreteString]
   private val variableCache = mutable.Map.empty[String, DfVariable]
 
+  private var currentIndex = Option.empty[Int]
+
   private def indexOfNextInstr: Int = instructions.length
 
   private def hasControlFlowFromPreviousInstruction: Boolean =
@@ -29,6 +31,7 @@ class CfgBuilder {
 
   private def newInstr(instr: cfg.Instruction): cfg.Instruction = {
     instr.index = indexOfNextInstr
+    instr.sourceIndex = currentIndex
     instructions += instr
     numLabelsToNextInstr = 0
     instr
@@ -43,6 +46,14 @@ class CfgBuilder {
   private def use(label: BuildLabel): Unit = {
     assert(unboundLabels.contains(label) || boundLabels.contains(label))
     usedLabels += label
+  }
+
+  def withIndex[T](index: Int)(body: => T): T = {
+    val oldIndex = currentIndex
+    currentIndex = Some(index)
+    val result = body
+    currentIndex = oldIndex
+    result
   }
 
   def resolveVariable(name: String): DfVariable =
@@ -137,6 +148,11 @@ class CfgBuilder {
 
   def debug(checks: Seq[Debug.Check]): this.type = {
     newInstr(new Debug(checks))
+    this
+  }
+
+  def report(line: Int, before: Boolean): this.type = {
+    newInstr(new Debug(Seq(Debug.Report(line, before))))
     this
   }
 

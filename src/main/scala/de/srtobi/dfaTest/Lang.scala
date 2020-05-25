@@ -24,12 +24,12 @@ object Ast {
   case class PropertyAccess(base: Expression, property: String) extends Expression
   case class Call(function: Expression, args: Seq[Expression]) extends Expression
 
-  sealed abstract class Statement extends Node
+  sealed abstract class Statement(val startIndex: Int, val endIndex: Int) extends Node
   type Block = Seq[Statement]
-  case class ExpressionStmt(expr: Expression) extends Statement
-  case class IfStmt(condition: Expression, success: Block, fail: Option[Block]) extends Statement
-  case class ReturnStmt(expression: Option[Expression]) extends Statement
-  case class AssignmentStmt(target: Expression, expression: Expression) extends Statement
+  case class ExpressionStmt(expr: Expression)(_index: Int, _endIndex: Int) extends Statement(_index, _endIndex)
+  case class IfStmt(condition: Expression, success: Block, fail: Option[Block])(_index: Int, _endIndex: Int) extends Statement(_index, _endIndex)
+  case class ReturnStmt(expression: Option[Expression])(_index: Int, _endIndex: Int) extends Statement(_index, _endIndex)
+  case class AssignmentStmt(target: Expression, expression: Expression)(_index: Int, _endIndex: Int) extends Statement(_index, _endIndex)
 
   case class Script(main: Block) extends Node
 }
@@ -100,6 +100,10 @@ object LangTokens {
 }
 
 object LangParser {
+  def instanceWithIndex[T](input: (Int, (Int, Int) => T, Int)): T = {
+    val (index, f, endIndex) = input
+    f(index, endIndex)
+  }
 
   import LangTokens._
   import fastparse._
@@ -111,7 +115,7 @@ object LangParser {
 
   def blockOrReturnExpression[_:P]: P[Ast.Block] = P(
     block
-      | expression.map(e => Seq(Ast.ReturnStmt(Some(e))))
+      | (Index ~~ expression ~~ Index).map { case (index, e, endIndex) => Seq(Ast.ReturnStmt(Some(e))(index, endIndex)) }
   )
 
   def primaryExpression[_: P]: P[Ast.Expression] = P(
@@ -185,12 +189,13 @@ object LangParser {
 
   def statements[_: P]: P[Seq[Ast.Statement]] = P((CharIn(";").map(_ => None) | statement.map(Some(_))).rep.map(_.flatten))
   def block[_: P]: P[Seq[Ast.Statement]] = P("{" ~ statements ~ "}")
-  def statement[_: P]: P[Ast.Statement] = P(
+  def statement[_: P]: P[Ast.Statement] = P( Index ~~ (
     ("if" ~/ "(" ~/ expression ~ ")" ~/ blockOrStatement ~/ ("else" ~/ blockOrStatement).?).map((Ast.IfStmt.apply _).tupled) |
-      ("return" ~/ expression.?).map(Ast.ReturnStmt) |
+      ("return" ~/ expression.?).map(e => Ast.ReturnStmt(e)(_, _)) |
       (NoCut(expression) ~ "=" ~/ expression ~~ exprEnd).map((Ast.AssignmentStmt.apply _).tupled) |
-      (expression ~~ exprEnd).map(Ast.ExpressionStmt)
-  )
+      (expression ~~ exprEnd).map(e => Ast.ExpressionStmt(e)(_, _))
+    ) ~~ Index
+  ).map(instanceWithIndex)
 
   def script[_: P]: P[Ast.Script] = P(Pass ~ statements ~ End).map(Ast.Script)
 

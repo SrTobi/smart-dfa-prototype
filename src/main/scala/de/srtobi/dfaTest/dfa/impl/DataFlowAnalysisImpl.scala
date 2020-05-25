@@ -47,6 +47,8 @@ class DataFlowAnalysisImpl(stdLib: Seq[(String, DfConcreteAny)] = DataFlowAnalys
 
     val state = states.reduce(_ unify _)
 
+    reportInstructionSummary(instruction, state)
+
     def load(entity: DfVarOrValue): DfValue = state.resolve(entity)
 
     val nextState = instruction match {
@@ -59,9 +61,9 @@ class DataFlowAnalysisImpl(stdLib: Seq[(String, DfConcreteAny)] = DataFlowAnalys
       case cfg.Mov(target, source) =>
         val s = load(source)
         target match {
-          case reg: DfRegister =>
+          case _: DfRegister =>
             state.withStore(target, s)
-          case v: DfLocalVariable =>
+          case _: DfLocalVariable =>
             state.facts.claimConstraint match {
               case Some(claimConstraint) =>
                 state.withConditionalStore(target, s, claimConstraint, s"[$target = $source]")
@@ -126,7 +128,10 @@ class DataFlowAnalysisImpl(stdLib: Seq[(String, DfConcreteAny)] = DataFlowAnalys
 
           case Print(entity, exprText) =>
             val actual = load(entity).toString(state)
-            println(s"$exprText in $line: $actual")
+            reportDebugMessage(s"$exprText in $line: $actual")
+
+          case Report(line, before) =>
+            debugReport(instruction, state, line, before)
         }
         state
 
@@ -155,6 +160,9 @@ class DataFlowAnalysisImpl(stdLib: Seq[(String, DfConcreteAny)] = DataFlowAnalys
       throw new Exception(s"Exception while processing '$instruction' in ${instruction.lineNumber}: '" + e.getMessage, e)
   }
 
+  protected def reportInstructionSummary(instruction: InstructionPtr, state: State): Unit = ()
+  protected def debugReport(instruction: InstructionPtr, state: State, line: Int, before: Boolean): Unit = ()
+  protected def reportDebugMessage(msg: String): Unit = println(msg)
   protected def reportDebugError(msg: String): Unit = println(msg)
 }
 

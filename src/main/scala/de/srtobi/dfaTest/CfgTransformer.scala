@@ -3,8 +3,21 @@ package de.srtobi.dfaTest
 import de.srtobi.dfaTest.cfg._
 import de.srtobi.dfaTest.dfa._
 
+import scala.util.DynamicVariable
+
 object CfgTransformer {
+  private val insertReports = new DynamicVariable[Option[String]](None)
+
   def transformScript(script: Ast.Script): ControlFlowGraph = {
+    this.insertReports.value = None
+    implicit val builder: CfgBuilder = new CfgBuilder
+    buildStatements(script.main)
+    builder.end()
+    builder.build()
+  }
+
+  def transformScriptWithReports(script: Ast.Script, code: String): ControlFlowGraph = {
+    this.insertReports.value = Some(code)
     implicit val builder: CfgBuilder = new CfgBuilder
     buildStatements(script.main)
     builder.end()
@@ -145,45 +158,47 @@ object CfgTransformer {
       result
   }
 
-  def transformStatement(statement: Ast.Statement)(implicit builder: CfgBuilder): Unit = statement match {
-    case Ast.ExpressionStmt(DebugExpr(checkFs)) =>
-      val checks = checkFs.map(f => f(builder))
-      builder.debug(checks)
+  def transformStatement(statement: Ast.Statement)(implicit builder: CfgBuilder): Unit = builder.withIndex(statement.startIndex) {
+    statement match {
+      case Ast.ExpressionStmt(DebugExpr(checkFs)) =>
+        val checks = checkFs.map(f => f(builder))
+        builder.debug(checks)
 
-    case Ast.ExpressionStmt(expr) =>
-      transformExpr(expr, RequireNoResult)
+      case Ast.ExpressionStmt(expr) =>
+        transformExpr(expr, RequireNoResult)
 
-    case Ast.IfStmt(condExpr, thenExpr, elseExpr) =>
-      val hasElse = elseExpr.isDefined
-      val endLabel = builder.createLabel("endIf")
-      val elseLabel = if (hasElse) builder.createLabel("else") else endLabel
+      case Ast.IfStmt(condExpr, thenExpr, elseExpr) =>
+        val hasElse = elseExpr.isDefined
+        val endLabel = builder.createLabel("endIf")
+        val elseLabel = if (hasElse) builder.createLabel("else") else endLabel
 
-      val cond = transformExpr(condExpr, RequireResult)
-      builder.jumpIfFalse(cond, elseLabel)
-      buildStatements(thenExpr)
-      if (hasElse) {
-        builder.jumpTo(endLabel)
+        val cond = transformExpr(condExpr, RequireResult)
+        builder.jumpIfFalse(cond, elseLabel)
+        buildStatements(thenExpr)
+        if (hasElse) {
+          builder.jumpTo(endLabel)
 
-        builder.bindLabel(elseLabel)
-        buildStatements(elseExpr.get)
-      }
-      builder.bindLabel(endLabel)
+          builder.bindLabel(elseLabel)
+          buildStatements(elseExpr.get)
+        }
+        builder.bindLabel(endLabel)
 
-    case Ast.ReturnStmt(expr) =>
-      val result = buildExprOrUndefined(expr)
-      builder.ret(result.get)
+      case Ast.ReturnStmt(expr) =>
+        val result = buildExprOrUndefined(expr)
+        builder.ret(result.get)
 
-    case Ast.AssignmentStmt(Ast.PropertyAccess(baseExpr, property), expr) =>
-      val base = transformExpr(baseExpr, RequireResult).get
-      val entity = transformExpr(expr, RequireResult).get
+      case Ast.AssignmentStmt(Ast.PropertyAccess(baseExpr, property), expr) =>
+        val base = transformExpr(baseExpr, RequireResult).get
+        val entity = transformExpr(expr, RequireResult).get
 
-      builder.write(base, property, entity)
+        builder.write(base, property, entity)
 
-    case Ast.AssignmentStmt(Ast.Identifier(variable), expr) =>
-      transformExpr(expr, RequireResult(builder.resolveVariable(variable)))
+      case Ast.AssignmentStmt(Ast.Identifier(variable), expr) =>
+        transformExpr(expr, RequireResult(builder.resolveVariable(variable)))
 
-    case Ast.AssignmentStmt(_, _) =>
-      throw new Exception("Can only assign to variables and properties")
+      case Ast.AssignmentStmt(_, _) =>
+        throw new Exception("Can only assign to variables and properties")
+    }
   }
 
 
@@ -197,8 +212,28 @@ object CfgTransformer {
     buildExprOr(expr, builder.undefined, rreq)
 
 
-  private def buildStatements(stmts: Seq[Ast.Statement])(implicit builder: CfgBuilder): Unit =
-    stmts.foreach(transformStatement)
+  private def buildStatements(stmts: Seq[Ast.Statement])(implicit builder: CfgBuilder): Unit = {
+    def insertReportImpl(stmt: Ast.Statement, before: Boolean, code: String): Unit = {
+      val line =
+        if (before) code.substring(0, stmt.startIndex).count(_ == '\n')
+        else code.substring(0, stmt.endIndex - 1).count(_ == '\n')
+      builder.report(line, before)
+    }
+    val insertReport: (Ast.Statement, Boolean) => Unit = insertReports.value match {
+      case Some(code) => insertReportImpl(_, _, code)
+      case None => (_, _) => ()
+    }
+
+    var first = true
+    for (stmt <- stmts) {
+      if (first) {
+        first = false
+        insertReport(stmt, true)
+      }
+      transformStatement(stmt)
+      insertReport(stmt, false)
+    }
+  }
 
   def main(args: Array[String]): Unit = {
     val code =

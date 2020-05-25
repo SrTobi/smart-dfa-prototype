@@ -75,10 +75,10 @@ case class FactsImpl(claims: Map[DfValue, Boolean], pins: Map[PinnedValue, PinDe
     buildPossibleEqualityMap {
       map => {
         if (necessaryValues.forall(!map.isNothing(_))) {
-          print("")
+          //print("")
           result = result.mergeWithOtherDefaulting(map.concreteValues, DfAny)(_ unify _)
         } else {
-          print("")
+          //print("")
         }
         false
       }

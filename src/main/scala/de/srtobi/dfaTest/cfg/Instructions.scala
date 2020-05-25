@@ -4,9 +4,15 @@ package cfg
 import de.srtobi.dfaTest.dfa._
 
 sealed abstract class Instruction {
+  private var _sourceIndex: Option[Int] = _
   private var _index: Int = -1
   private var _graph: ControlFlowGraph = _
   private var _labels: Set[Label] = _
+
+  def sourceIndex: Option[Int] = {
+    assert(_sourceIndex != null)
+    _sourceIndex
+  }
 
   def index: Int = {
     assert(_index >= 0)
@@ -14,6 +20,11 @@ sealed abstract class Instruction {
   }
 
   def lineNumber: Int= index + 1
+
+  private[dfaTest] def sourceIndex_=(i: Option[Int]): Unit = {
+    assert(_sourceIndex == null)
+    _sourceIndex = i
+  }
 
   private[dfaTest] def index_=(idx: Int): Unit = {
     assert(_index == -1)
@@ -303,6 +314,10 @@ object Debug extends Instruction.Info("Debug") {
   }
   case object CheckLiveCode extends Check {
     override def toString: String = "live"
+  }
+
+  case class Report(line: Int, before: Boolean) extends Check {
+    override def toString: String = "report"
   }
 
   sealed trait Expectation
