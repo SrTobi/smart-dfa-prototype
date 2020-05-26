@@ -1,0 +1,26 @@
+#!/bin/sh
+set -e
+git sw gh-pages
+
+rm -rf node_modules dist
+git rebase master
+
+
+pushd ../..
+sbt fastOptJS
+popd
+
+
+npm install
+npm run bundle
+
+pushd ../..
+rm -r docs
+mkdir docs
+cp -r web/app/dist/* docs
+git add docs
+git commit -m "publish new version"
+git push -f
+popd
+
+git sw master
