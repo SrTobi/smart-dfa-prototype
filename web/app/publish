@@ -1,15 +1,15 @@
 #!/bin/sh
 set -e
-git sw gh-pages
-
-rm -rf node_modules dist
-git rebase master
-
 
 pushd ../..
 sbt fastOptJS
 popd
 
+
+git sw gh-pages
+
+rm -rf node_modules dist
+git rebase master
 
 npm install
 npm run bundle
