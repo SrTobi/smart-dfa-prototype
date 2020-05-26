@@ -1,6 +1,9 @@
 package de.srtobi.dfaTest
 package dfa
 
+import de.srtobi.dfaTest.cfg.ControlFlowGraph
+import de.srtobi.dfaTest.dfa.DfaRunner.WQItem
+
 import scala.collection.mutable
 
 class DfaRunner(val dfa: DataFlowAnalysis)(val controlFlowGraph: ControlFlowGraph, input: Seq[(String, DfConcreteAny)] = Seq.empty) {

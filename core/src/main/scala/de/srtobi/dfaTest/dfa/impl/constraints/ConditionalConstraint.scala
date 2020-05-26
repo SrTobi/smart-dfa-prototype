@@ -3,6 +3,8 @@ package dfa
 package impl
 package constraints
 
+import de.srtobi.dfaTest.dfa.impl.constraints.Constraint._
+
 case class ConditionalConstraint(target: PinnedValue, value: DfValue, condition: Constraint) extends Constraint {
   override def toString: String = {
     s"($target = $value) if $condition"

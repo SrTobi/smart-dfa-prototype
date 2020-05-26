@@ -1,4 +1,8 @@
-package de.srtobi.dfaTest.dfa.impl
+package de.srtobi.dfaTest
+package dfa
+package impl
+
+import de.srtobi.dfaTest.cfg.Instruction
 
 import scala.collection.mutable
 
@@ -47,40 +51,4 @@ trait DfaPrinting extends DataFlowAnalysisImpl {
 
   override protected def reportDebugMessage(msg: String): Unit = ()
   override protected def reportDebugError(msg: String): Unit = ()
-}
-
-object DfaPrintingMain {
-  def main(args: Array[String]): Unit = {
-    val code =
-      """
-        |x = rand()
-        |if (x == 3) {
-        | a = "b"
-        |} else {
-        | a = "a"
-        |}
-        |
-        |if (rand()) {
-        | b = "b"
-        |} else {
-        | b = "c"
-        |}
-        |
-        |debug(a is ["a" | "c"])
-        |debug.print(x)
-        |
-        |if (a == b) {
-        |  debug(a is "b")
-        |  debug(x is 3)
-        |}
-        |
-        |""".stripMargin
-    val cfg = CfgTransformer.transformScriptWithReports(LangParser.parse(code), code)
-    //println(cfg.asmText())
-    //println("---------------------------")
-    val dfa = new DataFlowAnalysisImpl with DfaPrinting
-    val runner = new DfaRunner(dfa)(cfg)
-    runner.run()
-    println(dfa.printIn(code))
-  }
 }

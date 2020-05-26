@@ -2,6 +2,8 @@ package de.srtobi.dfaTest
 package dfa
 package impl
 
+import de.srtobi.dfaTest.dfa.impl.EqualityMap.Info
+
 
 case class EqualityMap private(var parents: Map[PinnedValue, Either[PinnedValue, Info]]) {
   def truthValueOf(value: DfValue): TruthValue = Unifiable.unify(

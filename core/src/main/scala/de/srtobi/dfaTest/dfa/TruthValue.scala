@@ -1,6 +1,8 @@
 package de.srtobi.dfaTest
 package dfa
 
+import de.srtobi.dfaTest.dfa.TruthValue._
+
 sealed abstract class TruthValue(val canBeTrue: Boolean, val canBeFalse: Boolean) {
   def canBe(bool: Boolean): Boolean =
     if (bool) canBeTrue else canBeFalse

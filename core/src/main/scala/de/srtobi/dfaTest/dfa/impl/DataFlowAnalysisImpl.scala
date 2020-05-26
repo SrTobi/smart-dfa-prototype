@@ -2,6 +2,9 @@ package de.srtobi.dfaTest
 package dfa
 package impl
 
+import de.srtobi.dfaTest.cfg.Instruction
+import de.srtobi.dfaTest.dfa.impl.constraints._
+
 import scala.collection.mutable
 import scala.util.control.NonFatal
 
@@ -96,6 +99,7 @@ class DataFlowAnalysisImpl(stdLib: Seq[(String, DfConcreteAny)] = DataFlowAnalys
           toNext(ifFalse, targetLabel.target)
 
       case cfg.Debug(checks) =>
+        import cfg.Debug._
 
         val line = instruction.lineNumber
         checks.foreach {

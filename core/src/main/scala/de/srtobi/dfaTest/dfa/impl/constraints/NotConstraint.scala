@@ -3,6 +3,8 @@ package dfa
 package impl
 package constraints
 
+import de.srtobi.dfaTest.dfa.impl.constraints.Constraint._
+
 case class NotConstraint(inner: Constraint) extends Constraint {
   override def toString: String = {
     s"!$inner"

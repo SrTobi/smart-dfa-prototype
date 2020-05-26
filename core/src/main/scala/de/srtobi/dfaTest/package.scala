@@ -1,5 +1,7 @@
 package de.srtobi
 
+import de.srtobi.dfaTest.dfa.Unifiable
+
 package object dfaTest {
   implicit class MapOps[K, V](private val map: Map[K, V]) extends AnyVal {
     def mergeWith(other: Map[K, V])(mergeF: (V, V) => V): Map[K, V] =

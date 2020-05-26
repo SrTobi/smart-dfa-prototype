@@ -2,6 +2,8 @@ package de.srtobi.dfaTest
 package dfa
 package impl
 
+import de.srtobi.dfaTest.dfa.impl.constraints._
+
 import scala.annotation.tailrec
 import scala.collection.mutable
 

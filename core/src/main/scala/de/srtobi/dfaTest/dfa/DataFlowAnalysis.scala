@@ -1,6 +1,8 @@
 package de.srtobi.dfaTest
 package dfa
 
+import de.srtobi.dfaTest.cfg.ControlFlowGraph
+
 trait DataFlowAnalysis {
   type State
   type InstructionPtr

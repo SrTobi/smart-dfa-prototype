@@ -1,5 +1,8 @@
 package de.srtobi.dfaTest
 
+import de.srtobi.dfaTest.cfg._
+import de.srtobi.dfaTest.dfa.{DfConcreteLambdaRef, DfVarOrValue}
+
 import scala.util.DynamicVariable
 
 object CfgTransformer {

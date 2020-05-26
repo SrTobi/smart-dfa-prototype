@@ -1,10 +1,10 @@
 package de.srtobi.dfaTest.dfa.impl
 
+import de.srtobi.dfaTest.dfa.DfaRunner
+import de.srtobi.dfaTest.{CfgTransformer, LangParser}
 import org.scalatest.funsuite.AnyFunSuite
 
 class DataFlowAnalysisImplTest extends AnyFunSuite {
-
-
   test("easy") {
     run(
       """
@@ -14,6 +14,7 @@ class DataFlowAnalysisImplTest extends AnyFunSuite {
         |} else {
         | a = "a"
         |}
+        |debug(x is debug.abs_any)
         |
         |if (rand()) {
         | b = "b"

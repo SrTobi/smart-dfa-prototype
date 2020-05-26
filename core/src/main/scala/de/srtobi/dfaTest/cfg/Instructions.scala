@@ -1,6 +1,8 @@
 package de.srtobi.dfaTest
 package cfg
 
+import de.srtobi.dfaTest.dfa._
+
 sealed abstract class Instruction {
   private var _sourceIndex: Option[Int] = _
   private var _index: Int = -1
@@ -315,7 +317,7 @@ object Debug extends Instruction.Info("Debug") {
   }
 
   case class Report(line: Int, before: Boolean) extends Check {
-    override def toString: String = "report"
+    override def toString: String = s"report ${if (before) "before" else "after"} $line"
   }
 
   sealed trait Expectation

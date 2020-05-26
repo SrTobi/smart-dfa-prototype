@@ -1,5 +1,8 @@
 package de.srtobi.dfaTest
 
+import de.srtobi.dfaTest.cfg.ControlFlowGraph
+import de.srtobi.dfaTest.dfa._
+
 import scala.collection.mutable
 
 class Interpreter(scriptCfg: ControlFlowGraph, stdLib: Seq[(String, DfConcreteAny)] = Interpreter.stdLib)(input: (String, DfConcreteAny)*) {
@@ -142,6 +145,7 @@ class Interpreter(scriptCfg: ControlFlowGraph, stdLib: Seq[(String, DfConcreteAn
 
       case cfg.Noop(_) => ()
       case cfg.Debug(checks) =>
+        import cfg.Debug._
 
         val line = instruction.lineNumber
         checks.foreach {

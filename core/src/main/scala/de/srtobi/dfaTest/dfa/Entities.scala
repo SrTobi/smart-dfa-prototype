@@ -1,5 +1,8 @@
 package de.srtobi.dfaTest.dfa
 
+import de.srtobi.dfaTest.Ast
+import de.srtobi.dfaTest.cfg.ControlFlowGraph
+
 
 sealed trait DfVarOrValue
 

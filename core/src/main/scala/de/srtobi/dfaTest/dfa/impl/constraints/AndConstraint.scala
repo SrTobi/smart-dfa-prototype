@@ -3,6 +3,8 @@ package dfa
 package impl
 package constraints
 
+import de.srtobi.dfaTest.dfa.impl.constraints.Constraint._
+
 case class AndConstraint(conjunctions: Set[Constraint]) extends Constraint {
   assert(conjunctions.size > 1)
 

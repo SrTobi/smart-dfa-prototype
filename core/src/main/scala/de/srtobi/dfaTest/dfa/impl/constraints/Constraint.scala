@@ -3,6 +3,8 @@ package dfa
 package impl
 package constraints
 
+import de.srtobi.dfaTest.dfa.impl.constraints.Constraint.ApplicationResult
+
 trait Constraint {
   //def result: PinnedValue
   //def mkString(arguments: Seq[DfValue]): String

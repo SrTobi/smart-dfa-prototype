@@ -1,6 +1,8 @@
 package de.srtobi.dfaTest
 package cfg
 
+import de.srtobi.dfaTest.dfa._
+
 import scala.language.implicitConversions
 
 abstract class ExprResult {

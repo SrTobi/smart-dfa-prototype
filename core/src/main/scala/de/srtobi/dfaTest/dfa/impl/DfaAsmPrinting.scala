@@ -2,6 +2,8 @@ package de.srtobi.dfaTest
 package dfa
 package impl
 
+import de.srtobi.dfaTest.cfg.Instruction
+
 import scala.collection.mutable
 
 trait DfaAsmPrinting extends DataFlowAnalysisImpl {
