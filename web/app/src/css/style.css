@@ -1,0 +1,211 @@
+body {
+    background-color: whitesmoke;
+    padding-bottom: 200px;
+}
+
+.input-block {
+    font: 15px/normal 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
+    margin-bottom: 30px;
+}
+
+.input-block:last-child {
+    margin-bottom: 0px;
+}
+
+.editor-container {
+    border: solid 1px lightgray;
+}
+
+.error-box {
+    color: darkred;
+    padding: 3px;
+}
+
+.expression-count-box {
+    margin-right: 5px
+}
+
+.too-many-zero-expression-attempts {
+    color: darkred;
+    font-weight: bold;
+}
+
+.config-box {
+    color: dimgrey;
+    border: solid 1px lightgray;
+    padding: 5px;
+    vertical-align: center;
+    background-color: #f0f0f0;
+}
+
+.config-box label {
+    margin: 0 4px;
+}
+
+.config-box > * {
+    height: 30px;
+}
+
+.expr-box {
+    color: black;
+    border: solid 1px lightgray;
+    padding: 3px;
+    padding-left: 10px;
+    overflow: auto;
+    word-wrap: normal;
+    white-space:nowrap;
+}
+
+.appl-box {
+    padding: 1px;
+}
+
+.appl-box.aliasTransform {
+    color: #666666
+}
+
+u.redex-func {
+    border-bottom: 1px solid;
+    text-decoration: none;
+}
+
+u.redex-arg {
+    border-bottom: 1px dashed;
+    text-decoration: none;
+}
+
+.reduce-box {
+    text-align: right;
+    background: #d0ffd0;
+    float: right;
+}
+
+.config-group {
+    display: flex;
+    align-items: center
+}
+
+.left { float: left; }
+.right { float: right; }
+
+.run-button > .toggle-view {
+    color: white;
+    background: green;
+    width: 50pt;
+    margin-left: 5px;
+    text-align: center;
+}
+
+.run-button > input:checked + .toggle-view {
+    background: darkred;
+}
+
+.float-clear {
+    clear: both;
+    height: 0
+}
+
+
+
+
+.switch {
+    vertical-align: middle;
+}
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 30px;
+  height: 17px;
+  margin: 0 4px;
+  vertical-align: middle;
+}
+
+/* Hide default HTML checkbox */
+.switch input {display:none;}
+
+/* The slider */
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  -webkit-transition: .1s;
+  transition: .1s;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 13px;
+  width: 13px;
+  left: 2px;
+  bottom: 2px;
+  background-color: white;
+  -webkit-transition: .1s;
+  transition: .1s;
+}
+
+
+
+input:checked + .slider {
+  background-color: #2196F3;
+}
+
+input:focus + .slider {
+  box-shadow: 0 0 1px #2196F3;
+}
+
+input:checked + .slider:before {
+  -webkit-transform: translateX(13px);
+  -ms-transform: translateX(13px);
+  transform: translateX(13px);
+}
+
+
+
+
+
+.toggle {
+    vertical-align: middle;
+}
+
+.toggle {
+  position: relative;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* Hide default HTML checkbox */
+.toggle input {display:none;}
+
+/* The slider */
+.toggle-view {
+  cursor: pointer;
+  background-color: #ccc;
+  -webkit-transition: .4s;
+  transition: .4s;
+  padding: 2px 5px;
+}
+
+.toggle-view:before {
+  background-color: white;
+  -webkit-transition: .4s;
+  transition: .4s;
+}
+
+input:checked + .toggle-view {
+  background-color: #2196F3;
+}
+
+input:focus + .toggle-view {
+  box-shadow: 0 0 1px #2196F3;
+}
+
+.monaco-editor .margin {
+    background-color: #f0f0f0 !important
+}
+

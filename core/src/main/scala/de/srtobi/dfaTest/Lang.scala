@@ -209,6 +209,15 @@ object LangParser {
         throw new Exception("Failed to compile")
     }
   }
+
+  def tryParse(code: String): Either[String, Ast.Script] = {
+    fastparse.parse(code, LangParser.script(_)) match {
+      case Parsed.Success(ast, _) =>
+        Right(ast)
+      case f@Parsed.Failure(_, _, extra) =>
+        Left(extra.trace().longAggregateMsg)
+    }
+  }
 }
 
 object LangPrinter {

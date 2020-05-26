@@ -6,9 +6,9 @@ lazy val commonSettings = Seq(
 
   scalacOptions ++= Seq("-deprecation", "-unchecked"),
 
-  libraryDependencies += "org.scalactic" %% "scalactic" % "3.1.1" % Test,
-  libraryDependencies += "org.scalatest" %% "scalatest" % "3.1.1" % Test,
-  libraryDependencies += "com.lihaoyi" %% "fastparse" % "2.2.2"
+  libraryDependencies += "org.scalactic" %%% "scalactic" % "3.1.1" % Test,
+  libraryDependencies += "org.scalatest" %%% "scalatest" % "3.1.1" % Test,
+  libraryDependencies += "com.lihaoyi" %%% "fastparse" % "2.3.0"
 )
 
 lazy val root = project
@@ -35,11 +35,12 @@ lazy val coreJS = core.js
 lazy val web = project
   .in(file("web"))
   .enablePlugins(ScalaJSPlugin)
+  .enablePlugins(ScalaJSBundlerPlugin)
   .dependsOn(coreJS)
   .settings(commonSettings)
   .settings(
     scalaJSUseMainModuleInitializer := false,
-    copyTask("web/html")
+    copyTask("web/app/src")
   )
 
 lazy val cli = project
@@ -53,8 +54,8 @@ def copyTask(odir: String) = {
   lazy val copyJSOutput = taskKey[Unit]("copy scala.js linker outputs to another location")
   Seq(
     copyJSOutput := {
-      println(s"Copying artifact ${scalaJSLinkedFile.in(Compile).value.path} to [${odir}]")
-      val src = file(scalaJSLinkedFile.in(Compile).value.path)
+      println(s"Copying artifact ${scalaJSLinkedFile.in(Compile).value.data.getAbsolutePath} to [${odir}]")
+      val src = file(scalaJSLinkedFile.in(Compile).value.data.getAbsolutePath)
       IO.copy(Seq(
         (src, file(odir) / src.name),
         (file(src.getCanonicalPath + ".map"), file(odir) / (src.name + ".map"))
