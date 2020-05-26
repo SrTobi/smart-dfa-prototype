@@ -1,11 +1,66 @@
-name := "dfa-test"
+import sbtcrossproject.CrossPlugin.autoImport.{CrossType, crossProject}
 
-version := "0.1"
+lazy val commonSettings = Seq(
+  organization := "de.srtobi",
+  scalaVersion := "2.13.1",
 
-scalaVersion := "2.13.1"
+  scalacOptions ++= Seq("-deprecation", "-unchecked"),
 
-scalacOptions := Seq("-unchecked", "-deprecation")
+  libraryDependencies += "org.scalactic" %% "scalactic" % "3.1.1" % Test,
+  libraryDependencies += "org.scalatest" %% "scalatest" % "3.1.1" % Test,
+  libraryDependencies += "com.lihaoyi" %% "fastparse" % "2.2.2"
+)
 
-libraryDependencies += "org.scalactic" %% "scalactic" % "3.1.0"
-libraryDependencies += "org.scalatest" %% "scalatest" % "3.1.0" % "test"
-libraryDependencies += "com.lihaoyi" %% "fastparse" % "2.2.2"
+lazy val root = project
+  .in(file("."))
+  .aggregate(cli, web, coreJS, coreJVM)
+  .settings(commonSettings)
+  .settings(
+    name := "dfa-test"
+  )
+
+lazy val core = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Pure)
+  .in(file("core"))
+  .settings(commonSettings)
+  .settings(
+    name := "dfa-test",
+    publish := {},
+    publishLocal := {},
+  )
+
+lazy val coreJVM = core.jvm
+lazy val coreJS = core.js
+
+lazy val web = project
+  .in(file("web"))
+  .enablePlugins(ScalaJSPlugin)
+  .dependsOn(coreJS)
+  .settings(commonSettings)
+  .settings(
+    scalaJSUseMainModuleInitializer := false,
+    copyTask("web/html")
+  )
+
+lazy val cli = project
+  .in(file("cli"))
+  .dependsOn(coreJVM)
+  .settings(commonSettings)
+
+
+
+def copyTask(odir: String) = {
+  lazy val copyJSOutput = taskKey[Unit]("copy scala.js linker outputs to another location")
+  Seq(
+    copyJSOutput := {
+      println(s"Copying artifact ${scalaJSLinkedFile.in(Compile).value.path} to [${odir}]")
+      val src = file(scalaJSLinkedFile.in(Compile).value.path)
+      IO.copy(Seq(
+        (src, file(odir) / src.name),
+        (file(src.getCanonicalPath + ".map"), file(odir) / (src.name + ".map"))
+      ), CopyOptions(overwrite = true, preserveLastModified = true, preserveExecutable = true))
+    },
+    fastOptJS / copyJSOutput := (copyJSOutput triggeredBy fastOptJS.in(Compile)).value,
+    fullOptJS / copyJSOutput := (copyJSOutput triggeredBy fullOptJS.in(Compile)).value
+  )
+}
