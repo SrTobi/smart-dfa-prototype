@@ -13,9 +13,8 @@ object Main {
         |} else {
         | a = "a"
         |}
-        |//debug(x is debug.abs_any)
         |
-        |/*if (rand()) {
+        |if (rand()) {
         | b = "b"
         |} else {
         | b = "c"
@@ -27,7 +26,7 @@ object Main {
         |if (a == b) {
         |  debug(a is "b")
         |  debug(x is 3)
-        |}*/
+        |}
         |
         |""".stripMargin
     val cfg = CfgTransformer.transformScriptWithReports(LangParser.parse(code), code)

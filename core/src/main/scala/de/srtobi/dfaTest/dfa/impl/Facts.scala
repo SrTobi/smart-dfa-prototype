@@ -72,11 +72,16 @@ case class FactsImpl(claims: Map[DfValue, Boolean], pins: Map[PinnedValue, PinDe
 
   override def computedValues(necessaryValues: Seq[DfValue]): Map[PinnedValue, DfAbstractAny] = {
     var result = Map.empty[PinnedValue, DfAbstractAny]
+    var first = true
     buildPossibleEqualityMap {
       map => {
         if (necessaryValues.forall(!map.isNothing(_))) {
-          //print("")
-          result = result.mergeWithOtherDefaulting(map.concreteValues, DfAny)(_ unify _)
+          print("")
+          if (first) {
+            first = false
+            result ++= map.concreteValues
+          } else
+            result = result.mergeWithDefaul(map.concreteValues, DfAny)(_ unify _)
         } else {
           //print("")
         }
