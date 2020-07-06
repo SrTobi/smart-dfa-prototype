@@ -2,6 +2,8 @@ package de.srtobi
 
 import de.srtobi.dfaTest.dfa.Unifiable
 
+import scala.collection.mutable
+
 package object dfaTest {
   implicit class MapOps[K, V](private val map: Map[K, V]) extends AnyVal {
     def mergeWith(other: Map[K, V])(mergeF: (V, V) => V): Map[K, V] =
@@ -42,5 +44,31 @@ package object dfaTest {
 
   implicit class BooleanExt(private val target: Boolean) {
     def ==>(other: Boolean): Boolean = !target || other
+
+    def pen(ifTrue: String): String = fold(ifTrue, "")
+
+    def fold[T](ifTrue: T, ifFalse: T): T =
+      if (target) ifTrue else ifFalse
+  }
+
+  def explore[T](starts: T*)(inner: ((T) => Unit, T) => Unit): Seq[T] = {
+    var visited = mutable.Set.empty[T]
+    val queue = mutable.Queue.empty[T]
+
+    def add(elem: T): Unit = {
+      if (!visited(elem)) {
+        visited += elem
+        queue += elem
+      }
+    }
+
+    starts.foreach(add)
+
+    while (queue.nonEmpty) {
+      val cur = queue.dequeue()
+      inner(add, cur)
+    }
+
+    visited.toSeq
   }
 }

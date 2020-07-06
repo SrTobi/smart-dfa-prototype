@@ -51,6 +51,11 @@ sealed trait DfAbstractAny extends DfValue[Any, Nothing] {
   def canBeAllOf(value: DfAbstractAny): Boolean
   def truthValue: TruthValue
   def isConcrete: Boolean = false
+  def concreteObjectRefs: Iterator[DfConcreteObjectRef] = this match {
+    case obj: DfConcreteObjectRef => Iterator(obj)
+    case DfAbstractUnion(values) => values.iterator.flatMap(_.concreteObjectRefs)
+    case _ => Iterator.empty
+  }
 }
 
 object DfAbstractAny {
@@ -76,7 +81,8 @@ sealed abstract class DfConcreteAny extends DfAbstractAny with DfVarOrValue {
 
 sealed abstract class DfConcreteAnyRef extends DfConcreteAny
 
-class DfConcreteObjectRef extends DfConcreteAnyRef {
+class DfConcreteObjectRef(name: String) extends DfConcreteAnyRef {
+  override def toString: String = s"{$name}"
   override def truthValue: TruthValue = TruthValue.True
 }
 

@@ -10,7 +10,7 @@ class Interpreter(scriptCfg: ControlFlowGraph, stdLib: Seq[(String, DfConcreteAn
   private var curStackFrame = Option(new StackFrame(scriptCfg, mutable.Map.from(input), None, None))
 
   def instantiateObject(props: (String, DfConcreteAny)*): DfConcreteObjectRef = {
-    val ref = new DfConcreteObjectRef
+    val ref = new DfConcreteObjectRef("obj")
     objects += ref -> mutable.Map.empty
     for ((prop, value) <- props) {
       writeObj(ref, prop)(value)

@@ -73,7 +73,7 @@ class DataFlowAnalysisImpl(stdLib: Seq[(String, DfConcreteAny)] = DataFlowAnalys
         }
 
       case cfg.New(target) =>
-        val ref = allocationSites.getOrElseUpdate(instruction, new DfConcreteObjectRef)
+        val ref = allocationSites.getOrElseUpdate(instruction, new DfConcreteObjectRef("obj"))
         state.withStore(target, ref)
 
       case cfg.Jump(targetLabel) =>
@@ -148,9 +148,12 @@ class DataFlowAnalysisImpl(stdLib: Seq[(String, DfConcreteAny)] = DataFlowAnalys
           }
         target.fold(state)(state.withStore(_, result))
 
-      case cfg.ReadProp(variable, value, str) =>
+      case cfg.ReadProp(target, base, prop) =>
         ???
-      case cfg.WriteProp(_, _, _) =>
+      case cfg.WriteProp(base, prop, value) =>
+        val obj = load(base)
+
+
         ???
       case cfg.Unify(target, elements) =>
         target.fold(state)(state.withStore(_, DfValue.unify(elements.map(load))))

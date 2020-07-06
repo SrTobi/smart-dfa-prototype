@@ -3,7 +3,9 @@ package dfa
 
 import de.srtobi.dfaTest.dfa.TruthValue._
 
-sealed abstract class TruthValue(val canBeTrue: Boolean, val canBeFalse: Boolean) {
+sealed abstract class TruthValue(final val canBeTrue: Boolean,
+                                 final val canBeFalse: Boolean,
+                                 final val toDfValue: DfAbstractAny) {
   def canBe(bool: Boolean): Boolean =
     if (bool) canBeTrue else canBeFalse
 
@@ -20,14 +22,21 @@ sealed abstract class TruthValue(val canBeTrue: Boolean, val canBeFalse: Boolean
   def <=(other: TruthValue): Boolean =
     canBeTrue ==> other.canBeTrue && canBeFalse ==> other.canBeFalse
 
+  def invert: TruthValue = this match {
+    case True => False
+    case False => True
+    case _ => this
+  }
+
+  def isConcrete: Boolean = canBeTrue != canBeFalse
 }
 object TruthValue {
   sealed trait ConcreteTruthValue extends TruthValue
 
-  case object Top extends TruthValue(true, true)
-  case object True extends TruthValue(true, false) with ConcreteTruthValue
-  case object False extends TruthValue(false, true) with ConcreteTruthValue
-  case object Bottom extends TruthValue(false, false)
+  case object Top extends TruthValue(true, true, DfBoolean)
+  case object True extends TruthValue(true, false, DfTrue) with ConcreteTruthValue
+  case object False extends TruthValue(false, true, DfFalse) with ConcreteTruthValue
+  case object Bottom extends TruthValue(false, false, DfNothing)
 
   def apply(bool: Boolean): TruthValue =
     if (bool) True else False
