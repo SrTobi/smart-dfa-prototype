@@ -31,7 +31,7 @@ class ConstraintAnalysis(stdLib: Seq[(String, DfConcreteAny)] = DataFlowAnalysis
       }
     }
 
-    def store(target: DfVariable, value: Value): Value = {
+    def store(target: DfVariable, value: Value): Unit = {
       target match {
         case reg: DfRegister => state.newRegister(reg, value)
         case v: DfVariable => state.writeProp(state.global.localScope, v.name, value)

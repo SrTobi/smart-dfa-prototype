@@ -21,6 +21,7 @@ class GraphDfa(val reports: Map[Debug.Report, Summary], val operations: Array[Op
               override def done(): Unit = reportF(report, summary)
             }
         }.toSeq
+        .sortBy(_.target.index)
     )
   }
 
@@ -56,6 +57,10 @@ class GraphDfa(val reports: Map[Debug.Report, Summary], val operations: Array[Op
       case None =>
     }
   }
+
+  def print(): Unit = {
+    operations.map(_.toText).foreach(println)
+  }
 }
 
 
@@ -81,7 +86,7 @@ object GraphDfa {
       """
         |a = { a: 5 }
         |b = 4
-        |if (a.a == 5) {
+        |if (a.a == 6) {
         |  b = "test"
         |}
         |""".stripMargin
@@ -89,10 +94,11 @@ object GraphDfa {
     println(cfg.asmText())
     println("---------------------------")
     val dfa = GraphDfa(cfg)
-
+    dfa.print()
+    println("---------------------------")
     dfa.gatherReports {
       (report, summary) =>
-        println(s"${report.before.fold("before", "after")} line ${report.line}:")
+        println(s"<<<< ${report.before.fold("before", "after")} line ${report.line} >>>>")
         printObjs(summary.summarize()(new Evaluator {}), dfa.localScopeObj)
     }
   }
