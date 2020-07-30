@@ -60,7 +60,7 @@ class GatherState(val global: Global,
   }
 
   def split(condition: Value): (GatherState, GatherState) = {
-    condition.isBlockCondition = true
+    //condition.isBlockCondition = true
     (
       new GatherState(global, Block(condition, targetTruthValue = true) :: blockStack, /*conditions + (condition -> true),*/ registers, properties),
       new GatherState(global, Block(condition, targetTruthValue = false) :: blockStack, /*conditions + (condition -> false),*/ registers, properties)
@@ -68,7 +68,7 @@ class GatherState(val global: Global,
   }
 
   private def newOperation[T <: Operation](op: T): T = {
-    op.block = blockStack.headOption
+    //op.block = blockStack.headOption
     global.add(op)
     op
   }
@@ -151,7 +151,7 @@ object GatherState {
       .groupBy(_._1)
       .view
       .mapValues {
-        case Seq((_, source, state)) => source
+        case (_, source, state) +: rest if rest.forall(_._2 == source) => source
         case all =>
           val op = new PropertyPhiOperation(
             all.head._1,

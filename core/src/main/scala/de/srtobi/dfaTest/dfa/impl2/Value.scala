@@ -2,98 +2,35 @@ package de.srtobi.dfaTest
 package dfa
 package impl2
 
-import de.srtobi.dfaTest.dfa.impl2.Value._
+import de.srtobi.dfaTest.dfa.impl2.Operation.Processor
 
-sealed abstract class Value {
-  var block: Option[Block] = None
+
+sealed abstract class Operation {
   var index: Int = -1
-  var isBlockCondition: Boolean = false
 
-  var state: State = Inactive
+  def process(index: Int, processor: Processor): Unit
 
-  final def activate()(implicit activator: Activator): Boolean = {
-    val oldState = state
-    state match {
-      case Inactive =>
-        state = Enqueued
-        val activateBlock = block match {
-          case Some(block) => block.condition.activate()
-          case None => true
-        }
-        val result = if (activateInner() && activateBlock) {
-          state = Ready
-          if (isBlockCondition && !evaluate()(new Evaluator {}).truthValue.isConcrete) {
-            state = Enqueued
-            activator.needsGuess(this)
-            false
-          } else {
-            state = Ready
-            activator.done(this)
-            true
-          }
-        } else {
-          assert(state == Enqueued)
-          activator.enqueue(this)
-          false
-        }
 
-        //println(s"activate $this: $oldState -> $state")
-        result
-      case Enqueued =>
-        false
-      case _ :Done | Ready =>
-        true
-    }
+  override def toString: String = {
+    assert(index >= 0)
+    "%" + index
   }
-
-  protected def activateInner()(implicit activator: Activator): Boolean
-
-  final def evaluate()(implicit evaluator: Evaluator): DfAbstractAny = {
-    state match {
-      case Unreachable => return DfNothing
-      case Done(result) => return result
-      case Inactive | Enqueued => throw new IllegalStateException(s"bad state in $this")
-      case Ready =>
-    }
-
-    val oldState = state
-    val result = block match {
-      case Some(Block(condition, targetTruthValue)) if !condition.evaluate().truthValue.canBe(targetTruthValue) =>
-        state = Unreachable
-        DfNothing
-
-      case _ =>
-        val result = evaluateInner()
-        state = Done(result)
-        result
-    }
-
-    //println(s"evaluate $this: $oldState -> $state")
-    result
-  }
-
-  protected def evaluateInner()(implicit evaluator: Evaluator): DfAbstractAny
-
-  final def activateAll(first: Value, rest: Value*)(implicit activator: Activator): Boolean = {
-    val firstA = first.activate()
-    activateAll(rest) && firstA
-  }
-
-  final def activateAll(values: IterableOnce[Value])(implicit activator: Activator): Boolean = {
-    var allActivated = true
-    for (value <- values.iterator) {
-      val result = value.activate()
-      allActivated &&= result
-    }
-    allActivated
-  }
-
-  final def allTrue(bools: Boolean*): Boolean =
-    bools.reduce(_ && _)
-
-  override def toString: String = "%" + index
-
   def toText: String
+}
+
+object Operation {
+  abstract class Processor {
+    def processNext(index: Int): Unit
+  }
+}
+
+sealed abstract class Value extends Operation {
+  private var _evaluated = Option.empty[DfAbstractAny]
+
+  def evaluated: DfAbstractAny = _evaluated.get
+
+  protected def evaluated_=(value: DfAbstractAny): Unit =
+    _evaluated = Some(value)
 }
 
 object Value {
@@ -104,25 +41,20 @@ object Value {
   case object Unreachable extends State
   case class Done(result: DfAbstractAny) extends State
 
-  abstract class Evaluator {
-  }
+  //abstract class Evaluator {
+  //}
 
-  abstract class Activator {
-    def enqueue(value: Value): Unit
-    def needsGuess(value: Value): Unit
-    def done(value: Value): Unit
-  }
+  //abstract class Activator {
+  //  def enqueue(value: Value): Unit
+  //  def needsGuess(value: Value): Unit
+  //  def done(value: Value): Unit
+  //}
 }
 
-sealed abstract class Operation extends Value {
-
-}
-
-final class UnknownValue(val name: String) extends Operation {
-  override protected def activateInner()(implicit activator: Activator): Boolean = true
-
-  override protected def evaluateInner()(implicit evaluator: Evaluator): DfAbstractAny = {
-    DfAny
+final class UnknownValue(val name: String) extends Value {
+  override def process(index: Int, processor: Processor): Unit = {
+    evaluated = DfAny
+    processor.processNext(index + 1)
   }
 
   override def toString: String = "@" + name
@@ -130,80 +62,74 @@ final class UnknownValue(val name: String) extends Operation {
   override def toText: String = s"make $this"
 }
 
-final class Constant(val value: DfAbstractAny) extends Operation {
-  override def activateInner()(implicit activator: Activator): Boolean = {
-    assert(!isBlockCondition)
-    true
+final class Constant(val value: DfAbstractAny) extends Value {
+  override def process(index: Int, processor: Processor): Unit = {
+    evaluated = value
+    processor.processNext(index + 1)
   }
-  override def evaluateInner()(implicit evaluator: Evaluator): DfAbstractAny = value
 
   override def toText: String = s"$this <- $value"
 }
 
-final class UnifyOperation(val sources: Set[Value]) extends Operation {
-
-  override def activateInner()(implicit activator: Activator): Boolean = {
-    assert(!isBlockCondition)
-    activateAll(sources)
+final class UnifyOperation(val sources: Set[Value]) extends Value {
+  override def process(index: Int, processor: Processor): Unit = {
+    evaluated = DfValue.unify(sources.map(_.evaluated))
+    processor.processNext(index + 1)
   }
-
-  override def evaluateInner()(implicit evaluator: Evaluator): DfAbstractAny =
-    DfValue.unify(sources.iterator.map(_.evaluate()))
 
   override def toText: String = s"$this <- {${sources.mkString(" | ")}}"
 }
 
-final class EqualityOperation(val left: Value, val right: Value) extends Operation {
-  override def activateInner()(implicit activator: Activator): Boolean =
-    activateAll(left, right)
+final class EqualityOperation(val left: Value, val right: Value) extends Value {
+  override def process(index: Int, processor: Processor): Unit = {
+    val left = this.left.evaluated
+    val right = this.right.evaluated
 
-  override def evaluateInner()(implicit evaluator: Evaluator): DfAbstractAny = {
-    val left = this.left.evaluate()
-    val right = this.right.evaluate()
-    if (left.isConcrete && left == right) {
-      DfTrue
-    } else if (left intersects right) {
-      DfBoolean
-    } else {
-      DfFalse
-    }
+    evaluated =
+      if (left.isConcrete && left == right) {
+        DfTrue
+      } else if (left intersects right) {
+        DfBoolean
+      } else {
+        DfFalse
+      }
+
+    processor.processNext(index + 1)
   }
 
   override def toText: String = s"$this <- $left == $right"
 }
 
-final class InvertOperation(val source: Value) extends Operation {
-  override protected def activateInner()(implicit activator: Activator): Boolean =
-    source.activate()
-
-  override protected def evaluateInner()(implicit evaluator: Evaluator): DfAbstractAny = {
-    source.evaluate().truthValue.invert.toDfValue
+final class InvertOperation(val source: Value) extends Value {
+  override def process(index: Int, processor: Processor): Unit = {
+    evaluated = source.evaluated.truthValue.invert.toDfValue
+    processor.processNext(index + 1)
   }
 
   override def toText: String = s"$this <- !$source"
 }
 
-final class TruthyOperation(val source: Value) extends Operation {
-  override protected def activateInner()(implicit activator: Activator): Boolean =
-    source.activate()
-
-  override protected def evaluateInner()(implicit evaluator: Evaluator): DfAbstractAny =
-    source.evaluate().truthValue.toDfValue
+final class TruthyOperation(val source: Value) extends Value {
+  override def process(index: Int, processor: Processor): Unit = {
+    evaluated = source.evaluated.truthValue.toDfValue
+    processor.processNext(index + 1)
+  }
 
   override def toText: String = s"$this <- truthy $source"
 }
 
 abstract class PropertyMemorySource extends Operation {
-  def resolve(obj: DfAbstractAny)(implicit evaluator: Evaluator): DfAbstractAny
+  def resolve(obj: DfAbstractAny): DfAbstractAny
 }
 
 
 
 class PropertyInit extends PropertyMemorySource {
-  override def resolve(obj: DfAbstractAny)(implicit evaluator: Evaluator): DfAbstractAny = DfUndefined
-  override protected def activateInner()(implicit activator: Activator): Boolean = true
+  override def resolve(obj: DfAbstractAny): DfAbstractAny = DfUndefined
 
-  override protected def evaluateInner()(implicit evaluator: Evaluator): DfAbstractAny = DfNothing
+  override def process(index: Int, processor: Processor): Unit = {
+    processor.processNext(index + 1)
+  }
 
   override def toText: String = s"$this <- prop-init"
 }
@@ -212,48 +138,47 @@ class PropertyInit extends PropertyMemorySource {
 
 final class PropertyPhiOperation(val property: String,
                                  val previousWrites: Seq[(Block, PropertyMemorySource)]) extends PropertyMemorySource {
-  override protected def activateInner()(implicit activator: Activator): Boolean =
-    activateAll(previousWrites.iterator.map(_._2))
+  private var active = false
 
-  override protected def evaluateInner()(implicit evaluator: Evaluator): DfAbstractAny = DfNothing
-
-  override def resolve(obj: DfAbstractAny)(implicit evaluator: Evaluator): DfAbstractAny = {
-    val isTrue: ((Block, PropertyMemorySource)) => Option[PropertyMemorySource] = {
-      case (block, op) if block.condition.evaluate().truthValue.canBe(block.targetTruthValue) => Some(op)
-      case _ => None
-    }
-
-    DfValue.unify(previousWrites.flatMap(isTrue).map(_.resolve(obj)))
+  override def process(index: Int, processor: Processor): Unit = {
+    active = true
+    processor.processNext(index + 1)
   }
 
-  override def toText: String = s"$this: $property <- ${previousWrites.map(w => w._2 + " if " + w._1).mkString(" | ")}"
+  override def resolve(obj: DfAbstractAny): DfAbstractAny = {
+    if (active) {
+      val isTrue: ((Block, PropertyMemorySource)) => Option[PropertyMemorySource] = {
+        case (block, op) if block.condition.evaluated.truthValue.canBe(block.targetTruthValue) => Some(op)
+        case _ => None
+      }
+
+      DfValue.unify(previousWrites.flatMap(isTrue).map(_.resolve(obj)))
+    } else DfNothing
+  }
+
+  override def toText: String = s"$this: *.$property <- ${previousWrites.map(w => w._2 + " if " + w._1).mkString(" | ")}"
 }
 
 final class WritePropertyOperation(val base: Value,
                                    val property: String,
                                    val input: Value,
                                    val previousWrite: PropertyMemorySource) extends PropertyMemorySource {
-  override protected def activateInner()(implicit activator: Activator): Boolean = {
-    assert(!isBlockCondition)
-    allTrue(
-      activateAll(base, input),
-      previousWrite.activate()
-    )
+  private var active = false
+
+  override def process(index: Int, processor: Processor): Unit = {
+    active = true
+    processor.processNext(index + 1)
   }
 
-  override protected def evaluateInner()(implicit evaluator: Evaluator): DfAbstractAny = DfTrue
-
-  override def resolve(obj: DfAbstractAny)(implicit evaluator: Evaluator): DfAbstractAny = {
-    val myState = evaluate()
-    assert(myState == DfTrue || myState == DfNothing)
-
-    if (myState == DfNothing) {
+  override def resolve(obj: DfAbstractAny): DfAbstractAny = {
+    if (!active) {
       return DfNothing
     }
+
     def allPrevious = previousWrite.resolve(obj)
-    def input = this.input.evaluate()
+    def input = this.input.evaluated
     def all = input unify allPrevious
-    lazy val base = this.base.evaluate()
+    lazy val base = this.base.evaluated
 
     obj match {
       case DfNothing => DfNothing
@@ -271,17 +196,9 @@ final class WritePropertyOperation(val base: Value,
 
 final class ReadPropertyOperation(val base: Value,
                                   val property: String,
-                                  val previousWrite: PropertyMemorySource) extends Operation {
-  override protected def activateInner()(implicit activator: Activator): Boolean = {
-    assert(!isBlockCondition)
-    allTrue(
-      activateAll(base),
-      activateAll(previousWrite)
-    )
-  }
-
-  override protected def evaluateInner()(implicit evaluator: Evaluator): DfAbstractAny = {
-    val obj = base.evaluate()
+                                  val previousWrite: PropertyMemorySource) extends Value {
+  override def process(index: Int, processor: Processor): Unit = {
+    val obj = base.evaluated
     previousWrite.resolve(obj)
   }
 
@@ -289,20 +206,10 @@ final class ReadPropertyOperation(val base: Value,
 }
 
 final class Summary(val values: Seq[Value], val previousWrite: Map[String, PropertyMemorySource], localScope: DfConcreteObjectRef) extends Operation {
-  override def activateInner()(implicit activator: Activator): Boolean = {
-    assert(!isBlockCondition)
 
-    allTrue(
-      activateAll(values),
-      activateAll(previousWrite.valuesIterator)
-    )
-  }
+  override def process(index: Int, processor: Processor): Unit = ()
 
-  override def evaluateInner()(implicit evaluator: Evaluator): DfAbstractAny = DfNothing
-
-  def summarize()(implicit evaluator: Evaluator): Map[DfConcreteObjectRef, Map[String, DfAbstractAny]] = {
-    evaluate()
-
+  def summarize(): Map[DfConcreteObjectRef, Map[String, DfAbstractAny]] = {
     val result = Map.newBuilder[DfConcreteObjectRef, Map[String, DfAbstractAny]]
 
     explore(localScope) {

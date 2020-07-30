@@ -4,7 +4,6 @@ package impl2
 
 import de.srtobi.dfaTest.cfg.{ControlFlowGraph, Debug}
 import de.srtobi.dfaTest.dfa.impl2.GraphDfa.Task
-import de.srtobi.dfaTest.dfa.impl2.Value.{Activator, Evaluator}
 
 import scala.collection.mutable
 
@@ -17,7 +16,7 @@ class GraphDfa(val reports: Map[Debug.Report, Summary], val operations: Array[Op
         .map {
           case (report, summary) =>
             new Task {
-              override def target: Value = summary
+              override def target: Operation = summary
               override def done(): Unit = reportF(report, summary)
             }
         }.toSeq
@@ -30,10 +29,10 @@ class GraphDfa(val reports: Map[Debug.Report, Summary], val operations: Array[Op
     val enqueued = mutable.Buffer.empty[Value]
     val operationToTask = tasks.groupBy(_.target)
 
-    val activator = new Activator {
+    /*val activator = new Activator {
       override def enqueue(value: Value): Unit = enqueued += value
       override def needsGuess(value: Value): Unit = {
-        assert(value.isBlockCondition)
+        //assert(value.isBlockCondition)
         nextGuess = nextGuess match {
           case Some(prevNextGuess) =>
             val Seq(nextGuess, toEnqueue) = Seq(prevNextGuess, value).sortBy(_.index)
@@ -46,11 +45,7 @@ class GraphDfa(val reports: Map[Debug.Report, Summary], val operations: Array[Op
       override def done(value: Value): Unit =
         for (tasks <- operationToTask.get(value); task <- tasks)
           task.done()
-    }
-
-    for (op <- operationToTask.keysIterator) {
-      op.activate()(activator)
-    }
+    }*/
 
     nextGuess match {
       case Some(guess) => ???
@@ -66,7 +61,7 @@ class GraphDfa(val reports: Map[Debug.Report, Summary], val operations: Array[Op
 
 object GraphDfa {
   trait Task {
-    def target: Value
+    def target: Operation
     def done(): Unit
   }
 
@@ -99,7 +94,7 @@ object GraphDfa {
     dfa.gatherReports {
       (report, summary) =>
         println(s"<<<< ${report.before.fold("before", "after")} line ${report.line} >>>>")
-        printObjs(summary.summarize()(new Evaluator {}), dfa.localScopeObj)
+        printObjs(summary.summarize(), dfa.localScopeObj)
     }
   }
 
