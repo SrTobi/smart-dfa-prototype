@@ -63,10 +63,14 @@ object DfAbstractAny {
     (entities: IterableOnce[DfAbstractAny]) => DfValue.unify(entities)
 }
 
-case object DfNothing extends DfAbstractAny {
+case object DfNothing extends DfAbstractAny with DfAbstractBoolean {
   override def truthValue: TruthValue = TruthValue.Bottom
 
   override def canBeAllOf(value: DfAbstractAny): Boolean = false
+
+  override def unify(other: DfAbstractBoolean): DfAbstractBoolean = other
+  override def couldBe(bool: Boolean): false = false
+  override def negative: DfNothing.type = DfNothing
 }
 
 case object DfAny extends DfAbstractAny {

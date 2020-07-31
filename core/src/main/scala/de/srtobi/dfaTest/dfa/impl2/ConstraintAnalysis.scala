@@ -23,7 +23,7 @@ class ConstraintAnalysis(stdLib: Seq[(String, DfConcreteAny)] = DataFlowAnalysis
   override def process(instruction: InstructionPtr, states: Iterable[State]): Seq[(InstructionPtr, State)] = try {
     val state = GatherState.unify(states)
 
-    def load(value: DfVarOrValue): Value = {
+    def load(value: DfVarOrValue): Value[DfAbstractAny] = {
       value match {
         case reg: DfRegister => state.register(reg)
         case v: DfVariable => state.readProp(state.global.localScope, v.name)
@@ -31,7 +31,7 @@ class ConstraintAnalysis(stdLib: Seq[(String, DfConcreteAny)] = DataFlowAnalysis
       }
     }
 
-    def store(target: DfVariable, value: Value): Unit = {
+    def store(target: DfVariable, value: Value[DfAbstractAny]): Unit = {
       target match {
         case reg: DfRegister => state.newRegister(reg, value)
         case v: DfVariable => state.writeProp(state.global.localScope, v.name, value)
@@ -65,7 +65,7 @@ class ConstraintAnalysis(stdLib: Seq[(String, DfConcreteAny)] = DataFlowAnalysis
 
       case cfg.JumpIfNot(condition, targetLabel) =>
         val cond = load(condition)
-        val (ifTrue, ifFalse) = state.split(cond)
+        val (ifTrue, ifFalse) = state.split(state.truthify(cond))
         return Seq(
           instruction.nextInstruction -> ifTrue,
           targetLabel.target -> ifFalse,
@@ -124,7 +124,7 @@ class ConstraintAnalysis(stdLib: Seq[(String, DfConcreteAny)] = DataFlowAnalysis
           }
         target.fold(state)(state.withStore(_, result))*/
         load(func) match {
-          case c: Constant =>
+          case c: Constant[_] =>
             c.value match {
               case DfConcreteInternalFunc("rand") =>
                 target.foreach(

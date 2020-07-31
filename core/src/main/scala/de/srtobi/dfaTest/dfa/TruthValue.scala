@@ -5,7 +5,7 @@ import de.srtobi.dfaTest.dfa.TruthValue._
 
 sealed abstract class TruthValue(final val canBeTrue: Boolean,
                                  final val canBeFalse: Boolean,
-                                 final val toDfValue: DfAbstractAny) {
+                                 final val toDfValue: DfAbstractBoolean) {
   def canBe(bool: Boolean): Boolean =
     if (bool) canBeTrue else canBeFalse
 

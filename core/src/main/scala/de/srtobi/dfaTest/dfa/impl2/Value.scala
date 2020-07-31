@@ -2,34 +2,47 @@ package de.srtobi.dfaTest
 package dfa
 package impl2
 
-import de.srtobi.dfaTest.dfa.impl2.Operation.Processor
+import scala.collection.mutable
 
 
-sealed abstract class Operation {
-  var index: Int = -1
-
-  def process(index: Int, processor: Processor): Unit
-
+trait Indexed {
+  def index: Int
 
   override def toString: String = {
     assert(index >= 0)
     "%" + index
   }
+}
+
+sealed abstract class Operation extends Indexed {
+  var index: Int = -1
+  var asPrecondition = Option.empty[Value[DfAbstractBoolean]]
+  var precondition = Option.empty[Block]
+
+  def active: Boolean = {
+    assert(precondition != null)
+    precondition.forall(_.active)
+  }
+
+  def process(): Unit =
+    if (active) {
+      processInner()
+    }
+
+  protected def processInner(): Unit
+
   def toText: String
 }
 
-object Operation {
-  abstract class Processor {
-    def processNext(index: Int): Unit
-  }
-}
 
-sealed abstract class Value extends Operation {
-  private var _evaluated = Option.empty[DfAbstractAny]
+sealed abstract class Value[+T >: DfNothing.type <: DfAbstractAny] extends Operation {
+  private[this] var _evaluated = Option.empty[T]
 
-  def evaluated: DfAbstractAny = _evaluated.get
+  def evaluated: T =
+    if (!active) DfNothing
+    else _evaluated.get
 
-  protected def evaluated_=(value: DfAbstractAny): Unit =
+  protected[this] def evaluated_=(value: T): Unit =
     _evaluated = Some(value)
 }
 
@@ -51,10 +64,9 @@ object Value {
   //}
 }
 
-final class UnknownValue(val name: String) extends Value {
-  override def process(index: Int, processor: Processor): Unit = {
+final class UnknownValue(val name: String) extends Value[DfAbstractAny] {
+  override protected def processInner(): Unit = {
     evaluated = DfAny
-    processor.processNext(index + 1)
   }
 
   override def toString: String = "@" + name
@@ -62,26 +74,24 @@ final class UnknownValue(val name: String) extends Value {
   override def toText: String = s"make $this"
 }
 
-final class Constant(val value: DfAbstractAny) extends Value {
-  override def process(index: Int, processor: Processor): Unit = {
+final class Constant[T >: DfNothing.type <: DfAbstractAny](val value: T) extends Value[T] {
+  override protected def processInner(): Unit = {
     evaluated = value
-    processor.processNext(index + 1)
   }
 
   override def toText: String = s"$this <- $value"
 }
 
-final class UnifyOperation(val sources: Set[Value]) extends Value {
-  override def process(index: Int, processor: Processor): Unit = {
+final class UnifyOperation(val sources: Set[Value[DfAbstractAny]]) extends Value[DfAbstractAny] {
+  override protected def processInner(): Unit = {
     evaluated = DfValue.unify(sources.map(_.evaluated))
-    processor.processNext(index + 1)
   }
 
   override def toText: String = s"$this <- {${sources.mkString(" | ")}}"
 }
 
-final class EqualityOperation(val left: Value, val right: Value) extends Value {
-  override def process(index: Int, processor: Processor): Unit = {
+final class EqualityOperation(val left: Value[DfAbstractAny], val right: Value[DfAbstractAny]) extends Value[DfAbstractBoolean] {
+  override protected def processInner(): Unit = {
     val left = this.left.evaluated
     val right = this.right.evaluated
 
@@ -93,42 +103,38 @@ final class EqualityOperation(val left: Value, val right: Value) extends Value {
       } else {
         DfFalse
       }
-
-    processor.processNext(index + 1)
   }
 
   override def toText: String = s"$this <- $left == $right"
 }
 
-final class InvertOperation(val source: Value) extends Value {
-  override def process(index: Int, processor: Processor): Unit = {
+final class InvertOperation(val source: Value[DfAbstractAny]) extends Value[DfAbstractBoolean] {
+  override protected def processInner(): Unit = {
     evaluated = source.evaluated.truthValue.invert.toDfValue
-    processor.processNext(index + 1)
   }
 
   override def toText: String = s"$this <- !$source"
 }
 
-final class TruthyOperation(val source: Value) extends Value {
-  override def process(index: Int, processor: Processor): Unit = {
+final class TruthyOperation(val source: Value[DfAbstractAny]) extends Value[DfAbstractBoolean] {
+  override protected def processInner(): Unit = {
     evaluated = source.evaluated.truthValue.toDfValue
-    processor.processNext(index + 1)
   }
 
   override def toText: String = s"$this <- truthy $source"
 }
 
-abstract class PropertyMemorySource extends Operation {
+trait PropertyMemorySource {
   def resolve(obj: DfAbstractAny): DfAbstractAny
 }
 
 
 
-class PropertyInit extends PropertyMemorySource {
+class PropertyInit extends Operation with PropertyMemorySource {
   override def resolve(obj: DfAbstractAny): DfAbstractAny = DfUndefined
 
-  override def process(index: Int, processor: Processor): Unit = {
-    processor.processNext(index + 1)
+  override protected def processInner(): Unit = {
+    // nothing to do
   }
 
   override def toText: String = s"$this <- prop-init"
@@ -136,39 +142,45 @@ class PropertyInit extends PropertyMemorySource {
 
 
 
-final class PropertyPhiOperation(val property: String,
-                                 val previousWrites: Seq[(Block, PropertyMemorySource)]) extends PropertyMemorySource {
-  private var active = false
+final class PropertyPhiOperation extends Operation {
+  private val phis = mutable.Map.empty[String, PropertyPhi]
 
-  override def process(index: Int, processor: Processor): Unit = {
-    active = true
-    processor.processNext(index + 1)
+  def forProperty(property: String, previousWrites: Seq[(Block, PropertyMemorySource)]): PropertyMemorySource = {
+    val phi = new PropertyPhi(property, previousWrites)
+    phis += property -> phi
+    phi
   }
 
-  override def resolve(obj: DfAbstractAny): DfAbstractAny = {
-    if (active) {
-      val isTrue: ((Block, PropertyMemorySource)) => Option[PropertyMemorySource] = {
-        case (block, op) if block.condition.evaluated.truthValue.canBe(block.targetTruthValue) => Some(op)
-        case _ => None
-      }
+  override protected def processInner(): Unit = ()
 
-      DfValue.unify(previousWrites.flatMap(isTrue).map(_.resolve(obj)))
-    } else DfNothing
+  override def toText: String = s"$this:\n  " + phis.valuesIterator.map(_.toText).mkString("\n  ")
+
+  private final class PropertyPhi(val property: String, val previousWrites: Seq[(Block, PropertyMemorySource)]) extends PropertyMemorySource with Indexed {
+    override def resolve(obj: DfAbstractAny): DfAbstractAny = {
+      if (active) {
+        val isTrue: ((Block, PropertyMemorySource)) => Option[PropertyMemorySource] = {
+          case (block, op) if block.condition.evaluated.truthValue.canBe(block.targetTruthValue) => Some(op)
+          case _ => None
+        }
+
+        DfValue.unify(previousWrites.flatMap(isTrue).map(_.resolve(obj)))
+      } else DfNothing
+    }
+
+    def toText: String = s"$this: *.$property <- ${previousWrites.map(w => w._2.toString + " if " + w._1).mkString(" | ")}"
+
+    override def index: Int = PropertyPhiOperation.this.index
   }
-
-  override def toText: String = s"$this: *.$property <- ${previousWrites.map(w => w._2 + " if " + w._1).mkString(" | ")}"
 }
 
-final class WritePropertyOperation(val base: Value,
+final class WritePropertyOperation(val base: Value[DfAbstractAny],
                                    val property: String,
-                                   val input: Value,
-                                   val previousWrite: PropertyMemorySource) extends PropertyMemorySource {
-  private var active = false
-
-  override def process(index: Int, processor: Processor): Unit = {
-    active = true
-    processor.processNext(index + 1)
-  }
+                                   val input: Value[DfAbstractAny],
+                                   val previousWrite: PropertyMemorySource)
+  extends Operation
+    with PropertyMemorySource
+{
+  override protected def processInner(): Unit = ()
 
   override def resolve(obj: DfAbstractAny): DfAbstractAny = {
     if (!active) {
@@ -194,20 +206,20 @@ final class WritePropertyOperation(val base: Value,
   override def toText: String = s"$this: $base.$property <- $input [$previousWrite]"
 }
 
-final class ReadPropertyOperation(val base: Value,
+final class ReadPropertyOperation(val base: Value[DfAbstractAny],
                                   val property: String,
-                                  val previousWrite: PropertyMemorySource) extends Value {
-  override def process(index: Int, processor: Processor): Unit = {
+                                  val previousWrite: PropertyMemorySource) extends Value[DfAbstractAny] {
+  override protected def processInner(): Unit = {
     val obj = base.evaluated
-    previousWrite.resolve(obj)
+    evaluated = previousWrite.resolve(obj)
   }
 
   override def toText: String = s"$this <- $base.$property [$previousWrite]"
 }
 
-final class Summary(val values: Seq[Value], val previousWrite: Map[String, PropertyMemorySource], localScope: DfConcreteObjectRef) extends Operation {
+final class Summary(val values: Seq[Value[DfAbstractAny]], val previousWrite: Map[String, PropertyMemorySource], localScope: DfConcreteObjectRef) extends Operation {
 
-  override def process(index: Int, processor: Processor): Unit = ()
+  override protected def processInner(): Unit = ()
 
   def summarize(): Map[DfConcreteObjectRef, Map[String, DfAbstractAny]] = {
     val result = Map.newBuilder[DfConcreteObjectRef, Map[String, DfAbstractAny]]

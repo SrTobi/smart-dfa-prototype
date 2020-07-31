@@ -25,9 +25,32 @@ class GraphDfa(val reports: Map[Debug.Report, Summary], val operations: Array[Op
   }
 
   def evaluateAll(tasks: Seq[Task]): Unit = {
-    var nextGuess = Option.empty[Value]
-    val enqueued = mutable.Buffer.empty[Value]
+    //var nextGuess = Option.empty[Value[DfAbstractAny]]
+    //val enqueued = mutable.Buffer.empty[Value[DfAbstractAny]]
     val operationToTask = tasks.groupBy(_.target)
+
+    val workList = mutable.PriorityQueue.from(operations)(Ordering.by(-_.index))
+
+
+    while (workList.nonEmpty) {
+      val cur = workList.dequeue()
+
+      if (cur.active) {
+        cur.process()
+
+        cur.asPrecondition match {
+          case Some(pre) =>
+            if (!pre.evaluated.isConcrete) {
+              ???
+            }
+          case None =>
+        }
+
+        for (tasks <- operationToTask.get(cur); task <- tasks) {
+          task.done()
+        }
+      }
+    }
 
     /*val activator = new Activator {
       override def enqueue(value: Value): Unit = enqueued += value
@@ -47,10 +70,10 @@ class GraphDfa(val reports: Map[Debug.Report, Summary], val operations: Array[Op
           task.done()
     }*/
 
-    nextGuess match {
-      case Some(guess) => ???
-      case None =>
-    }
+    //nextGuess match {
+    //  case Some(guess) => ???
+    //  case None =>
+    //}
   }
 
   def print(): Unit = {
@@ -81,7 +104,7 @@ object GraphDfa {
       """
         |a = { a: 5 }
         |b = 4
-        |if (a.a == 6) {
+        |if (a.b == c) {
         |  b = "test"
         |}
         |""".stripMargin
@@ -103,7 +126,7 @@ object GraphDfa {
       (visit, obj) =>
         val (indent, end) =
           if (obj != localScope) {
-            println(obj + " = {")
+            println(obj.toString + " = {")
             "  " -> "}\n"
           } else "" -> ""
 

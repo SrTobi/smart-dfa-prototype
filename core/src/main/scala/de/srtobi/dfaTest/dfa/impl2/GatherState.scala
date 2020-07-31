@@ -10,16 +10,16 @@ import scala.collection.mutable
 class GatherState(val global: Global,
                   private val blockStack: List[Block],
                   //private val conditions: Map[Value, Boolean],
-                  private var registers: Map[DfRegister, Set[Value]],
+                  private var registers: Map[DfRegister, Set[Value[DfAbstractAny]]],
                   private var properties: Map[String, PropertyMemorySource]) {
 
-  def newRegister(register: DfRegister, value: Value): Value = {
+  def newRegister(register: DfRegister, value: Value[DfAbstractAny]): Value[DfAbstractAny] = {
     assert(!registers.contains(register))
     registers += (register -> Set(value))
     value
   }
 
-  def register(variable: DfRegister): Value = {
+  def register(variable: DfRegister): Value[DfAbstractAny] = {
     val set = registers(variable)
 
     if (set.size == 1) set.head
@@ -30,26 +30,30 @@ class GatherState(val global: Global,
     }
   }
 
-  def unknownValue(name: String): Value =
+  def truthify(value: Value[DfAbstractAny]): Value[DfAbstractBoolean] = {
+    newOperation(new TruthyOperation(value))
+  }
+
+  def unknownValue(name: String): Value[DfAbstractAny] =
     newOperation(new UnknownValue(name))
 
-  def unify(set: Set[Value]): Value =
+  def unify(set: Set[Value[DfAbstractAny]]): Value[DfAbstractAny] =
     newOperation(new UnifyOperation(set))
 
-  def constant(value: DfAbstractAny): Value =
+  def constant(value: DfAbstractAny): Value[DfAbstractAny] =
     newOperation(new Constant(value))
 
-  def makeEquality(left: Value, right: Value): Value =
+  def makeEquality(left: Value[DfAbstractAny], right: Value[DfAbstractAny]): Value[DfAbstractAny] =
     newOperation(new EqualityOperation(left, right))
 
   private def propsFor(prop: String): PropertyMemorySource =
     properties.getOrElse(prop, global.propertyInit)
 
-  def readProp(base: Value, prop: String): Value = {
+  def readProp(base: Value[DfAbstractAny], prop: String): Value[DfAbstractAny] = {
     newOperation(new ReadPropertyOperation(base, prop, propsFor(prop)))
   }
 
-  def writeProp(base: Value, prop: String, value: Value): Value = {
+  def writeProp(base: Value[DfAbstractAny], prop: String, value: Value[DfAbstractAny]): Value[DfAbstractAny] = {
     val op = newOperation(new WritePropertyOperation(base, prop, value, propsFor(prop)))
     properties += prop -> op
     value
@@ -59,7 +63,7 @@ class GatherState(val global: Global,
     global.reports += report -> newOperation(new Summary(Seq.empty, properties, global.localScopeObj))
   }
 
-  def split(condition: Value): (GatherState, GatherState) = {
+  def split(condition: Value[DfAbstractBoolean]): (GatherState, GatherState) = {
     //condition.isBlockCondition = true
     (
       new GatherState(global, Block(condition, targetTruthValue = true) :: blockStack, /*conditions + (condition -> true),*/ registers, properties),
@@ -68,13 +72,19 @@ class GatherState(val global: Global,
   }
 
   private def newOperation[T <: Operation](op: T): T = {
-    //op.block = blockStack.headOption
+    op.precondition = blockStack.headOption
     global.add(op)
     op
   }
 }
 
-case class Block(condition: Value, targetTruthValue: Boolean) {
+case class Block(condition: Value[DfAbstractBoolean], targetTruthValue: Boolean) {
+  assert(condition.asPrecondition.forall(_ == condition))
+  condition.asPrecondition = Some(condition)
+
+  def concrete: Boolean = condition.evaluated.isConcrete
+  def active: Boolean = condition.evaluated.couldBe(targetTruthValue)
+
   override def toString: String = (!targetTruthValue).pen("!") + condition
 }
 
@@ -146,6 +156,12 @@ object GatherState {
       } yield (prop._1, prop._2, state)
 
     val trueBlock = Block(global.trueConst, targetTruthValue = true)
+    lazy val phiOp = {
+      val op = new PropertyPhiOperation
+      global.add(op)
+      op
+    }
+
     val properties = propsWithStates
       .toSeq
       .groupBy(_._1)
@@ -153,12 +169,10 @@ object GatherState {
       .mapValues {
         case (_, source, state) +: rest if rest.forall(_._2 == source) => source
         case all =>
-          val op = new PropertyPhiOperation(
+          phiOp.forProperty(
             all.head._1,
             all.map { case (_, source, state) => state.blockStack.headOption.getOrElse(trueBlock) -> source }
           )
-          global.add(op)
-          op
       }
       .toMap
 
