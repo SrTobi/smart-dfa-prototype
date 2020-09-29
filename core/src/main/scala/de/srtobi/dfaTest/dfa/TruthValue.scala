@@ -29,6 +29,9 @@ sealed abstract class TruthValue(final val canBeTrue: Boolean,
   }
 
   def isConcrete: Boolean = canBeTrue != canBeFalse
+
+  def asConcrete: Option[Boolean] =
+    if (isConcrete) Some(canBeTrue) else None
 }
 object TruthValue {
   sealed trait ConcreteTruthValue extends TruthValue

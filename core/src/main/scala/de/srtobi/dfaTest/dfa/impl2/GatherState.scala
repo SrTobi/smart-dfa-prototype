@@ -10,16 +10,16 @@ import scala.collection.mutable
 class GatherState(val global: Global,
                   private val blockStack: List[Block],
                   //private val conditions: Map[Value, Boolean],
-                  private var registers: Map[DfRegister, Set[Value[DfAbstractAny]]],
+                  private var registers: Map[DfRegister, Set[Value]],
                   private var properties: Map[String, PropertyMemorySource]) {
 
-  def newRegister(register: DfRegister, value: Value[DfAbstractAny]): Value[DfAbstractAny] = {
+  def newRegister(register: DfRegister, value: Value): Value = {
     assert(!registers.contains(register))
     registers += (register -> Set(value))
     value
   }
 
-  def register(variable: DfRegister): Value[DfAbstractAny] = {
+  def register(variable: DfRegister): Value = {
     val set = registers(variable)
 
     if (set.size == 1) set.head
@@ -30,40 +30,44 @@ class GatherState(val global: Global,
     }
   }
 
-  def truthify(value: Value[DfAbstractAny]): Value[DfAbstractBoolean] = {
+  def truthify(value: Value): Value = {
     newOperation(new TruthyOperation(value))
   }
 
-  def unknownValue(name: String): Value[DfAbstractAny] =
+  def unknownValue(name: String): Value =
     newOperation(new UnknownValue(name))
 
-  def unify(set: Set[Value[DfAbstractAny]]): Value[DfAbstractAny] =
+  def unify(set: Set[Value]): Value =
     newOperation(new UnifyOperation(set))
 
-  def constant(value: DfAbstractAny): Value[DfAbstractAny] =
+  def constant(value: DfAbstractAny): Value =
     newOperation(new Constant(value))
 
-  def makeEquality(left: Value[DfAbstractAny], right: Value[DfAbstractAny]): Value[DfAbstractAny] =
+  def makeEquality(left: Value, right: Value): Value =
     newOperation(new EqualityOperation(left, right))
 
   private def propsFor(prop: String): PropertyMemorySource =
     properties.getOrElse(prop, global.propertyInit)
 
-  def readProp(base: Value[DfAbstractAny], prop: String): Value[DfAbstractAny] = {
+  def readProp(base: Value, prop: String): Value = {
     newOperation(new ReadPropertyOperation(base, prop, propsFor(prop)))
   }
 
-  def writeProp(base: Value[DfAbstractAny], prop: String, value: Value[DfAbstractAny]): Value[DfAbstractAny] = {
+  def writeProp(base: Value, prop: String, value: Value): Value = {
     val op = newOperation(new WritePropertyOperation(base, prop, value, propsFor(prop)))
     properties += prop -> op
     value
+  }
+
+  def newFunction(func: Value, args: Seq[Value]): Value = {
+    newOperation(new Call(func, args))
   }
 
   def report(report: Debug.Report): Unit = {
     global.reports += report -> newOperation(new Summary(Seq.empty, properties, global.localScopeObj))
   }
 
-  def split(condition: Value[DfAbstractBoolean]): (GatherState, GatherState) = {
+  def split(condition: Value): (GatherState, GatherState) = {
     //condition.isBlockCondition = true
     (
       new GatherState(global, Block(condition, targetTruthValue = true) :: blockStack, /*conditions + (condition -> true),*/ registers, properties),
@@ -78,12 +82,12 @@ class GatherState(val global: Global,
   }
 }
 
-case class Block(condition: Value[DfAbstractBoolean], targetTruthValue: Boolean) {
+case class Block(condition: Value, targetTruthValue: Boolean) {
   assert(condition.asPrecondition.forall(_ == condition))
   condition.asPrecondition = Some(condition)
 
   def concrete: Boolean = condition.evaluated.isConcrete
-  def active: Boolean = condition.evaluated.couldBe(targetTruthValue)
+  def active: Boolean = condition.evaluated.truthValue.canBe(targetTruthValue)
 
   override def toString: String = (!targetTruthValue).pen("!") + condition
 }
@@ -91,6 +95,13 @@ case class Block(condition: Value[DfAbstractBoolean], targetTruthValue: Boolean)
 
 object GatherState {
   def empty = new GatherState(new Global, Nil, Map.empty, Map.empty)
+
+  def withRand: GatherState = {
+    val state = empty
+    val rand = state.constant(DfConcreteInternalFunc("rand"))
+    state.writeProp(state.global.localScope, "rand", rand)
+    state
+  }
 
   class Global {
     //var allVariables: List[Value] = List.empty

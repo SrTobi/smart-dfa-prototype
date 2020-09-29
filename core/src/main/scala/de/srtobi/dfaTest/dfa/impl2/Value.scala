@@ -16,7 +16,7 @@ trait Indexed {
 
 sealed abstract class Operation extends Indexed {
   var index: Int = -1
-  var asPrecondition = Option.empty[Value[DfAbstractBoolean]]
+  var asPrecondition = Option.empty[Value]
   var precondition = Option.empty[Block]
 
   def active: Boolean = {
@@ -31,19 +31,60 @@ sealed abstract class Operation extends Indexed {
 
   protected def processInner(): Unit
 
+  def pushState(): Unit = ()
+  def popState(): Unit = ()
+
   def toText: String
 }
 
 
-sealed abstract class Value[+T >: DfNothing.type <: DfAbstractAny] extends Operation {
-  private[this] var _evaluated = Option.empty[T]
+sealed abstract class Value extends Operation {
+  private[this] var _evaluated = Option.empty[DfAbstractAny]
+  private[this] var _propagateAssumptions = Option.empty[Boolean]
+  private[this] var _filter = Option.empty[DfAbstractAny]
 
-  def evaluated: T =
+  def evaluated: DfAbstractAny =
     if (!active) DfNothing
-    else _evaluated.get
+    else {
+      val evaled = _evaluated.get
+      _filter.fold(evaled)(_ intersect evaled)
+    }
 
-  protected[this] def evaluated_=(value: T): Unit =
+  def setPropagateAssumptions(value: Boolean): Unit = _propagateAssumptions = Some(value)
+
+  def isPropagatingAssumptions: Boolean = _propagateAssumptions.isDefined
+
+  protected[this] def evaluated_=(value: DfAbstractAny): Unit =
     _evaluated = Some(value)
+
+  protected[this] def propagateAssumptions(targetTruth: Boolean): Unit = ()
+
+  override def process(): Unit = {
+    super.process()
+    if (active) {
+      _propagateAssumptions.foreach(propagateAssumptions)
+    }
+  }
+
+  private[this] val savedEvaluated = mutable.Stack.empty[(Option[DfAbstractAny], Option[Boolean], Option[DfAbstractAny])]
+
+  override def pushState(): Unit =
+    savedEvaluated.push((_evaluated, _propagateAssumptions, _filter))
+
+  override def popState(): Unit = {
+    val (evaluated, propagateAssumptions, filter) = savedEvaluated.pop()
+    _evaluated = evaluated
+    _propagateAssumptions = propagateAssumptions
+    _filter = filter
+  }
+
+  def setFilter(filterValue: DfAbstractAny): Unit = {
+    val finalFilterValue = _filter.fold(filterValue)(_ unify filterValue)
+    _filter = Some(finalFilterValue)
+    propagateFilter(finalFilterValue)
+  }
+
+  protected[this] def propagateFilter(filterValue: DfAbstractAny): Unit = ()
 }
 
 object Value {
@@ -64,7 +105,7 @@ object Value {
   //}
 }
 
-final class UnknownValue(val name: String) extends Value[DfAbstractAny] {
+final class UnknownValue(val name: String) extends Value {
   override protected def processInner(): Unit = {
     evaluated = DfAny
   }
@@ -74,7 +115,7 @@ final class UnknownValue(val name: String) extends Value[DfAbstractAny] {
   override def toText: String = s"make $this"
 }
 
-final class Constant[T >: DfNothing.type <: DfAbstractAny](val value: T) extends Value[T] {
+final class Constant[T >: DfNothing.type <: DfAbstractAny](val value: T) extends Value {
   override protected def processInner(): Unit = {
     evaluated = value
   }
@@ -82,15 +123,18 @@ final class Constant[T >: DfNothing.type <: DfAbstractAny](val value: T) extends
   override def toText: String = s"$this <- $value"
 }
 
-final class UnifyOperation(val sources: Set[Value[DfAbstractAny]]) extends Value[DfAbstractAny] {
+final class UnifyOperation(val sources: Set[Value]) extends Value {
   override protected def processInner(): Unit = {
     evaluated = DfValue.unify(sources.map(_.evaluated))
   }
 
   override def toText: String = s"$this <- {${sources.mkString(" | ")}}"
+
+  override protected[this] def propagateFilter(filterValue: DfAbstractAny): Unit =
+    sources.foreach(_.setFilter(filterValue))
 }
 
-final class EqualityOperation(val left: Value[DfAbstractAny], val right: Value[DfAbstractAny]) extends Value[DfAbstractBoolean] {
+final class EqualityOperation(val left: Value, val right: Value) extends Value {
   override protected def processInner(): Unit = {
     val left = this.left.evaluated
     val right = this.right.evaluated
@@ -106,26 +150,44 @@ final class EqualityOperation(val left: Value[DfAbstractAny], val right: Value[D
   }
 
   override def toText: String = s"$this <- $left == $right"
+
+  override protected[this] def propagateFilter(filterValue: DfAbstractAny): Unit =
+    if (filterValue.truthValue == TruthValue.True) {
+      val intersection = left.evaluated intersect right.evaluated
+      left.setFilter(intersection)
+      right.setFilter(intersection)
+    }
 }
 
-final class InvertOperation(val source: Value[DfAbstractAny]) extends Value[DfAbstractBoolean] {
+final class InvertOperation(val source: Value) extends Value {
   override protected def processInner(): Unit = {
     evaluated = source.evaluated.truthValue.invert.toDfValue
   }
 
   override def toText: String = s"$this <- !$source"
+
+  override protected[this] def propagateFilter(filterValue: DfAbstractAny): Unit =
+    filterValue.truthValue
+      .asConcrete
+      .map(b => DfConcreteBoolean(!b))
+      .foreach(source.setFilter)
 }
 
-final class TruthyOperation(val source: Value[DfAbstractAny]) extends Value[DfAbstractBoolean] {
+final class TruthyOperation(val source: Value) extends Value {
   override protected def processInner(): Unit = {
     evaluated = source.evaluated.truthValue.toDfValue
   }
 
   override def toText: String = s"$this <- truthy $source"
+
+  override protected[this] def propagateFilter(filterValue: DfAbstractAny): Unit =
+    source.setFilter(filterValue)
 }
 
 trait PropertyMemorySource {
   def resolve(obj: DfAbstractAny): DfAbstractAny
+
+  def propagateFilter(obj: DfConcreteAnyRef, filter: DfAbstractAny): Unit
 }
 
 
@@ -138,6 +200,8 @@ class PropertyInit extends Operation with PropertyMemorySource {
   }
 
   override def toText: String = s"$this <- prop-init"
+
+  override def propagateFilter(obj: DfConcreteAnyRef, filter: DfAbstractAny): Unit = ()
 }
 
 
@@ -156,26 +220,37 @@ final class PropertyPhiOperation extends Operation {
   override def toText: String = s"$this:\n  " + phis.valuesIterator.map(_.toText).mkString("\n  ")
 
   private final class PropertyPhi(val property: String, val previousWrites: Seq[(Block, PropertyMemorySource)]) extends PropertyMemorySource with Indexed {
-    override def resolve(obj: DfAbstractAny): DfAbstractAny = {
+    def activeSources: Iterator[PropertyMemorySource] =
       if (active) {
         val isTrue: ((Block, PropertyMemorySource)) => Option[PropertyMemorySource] = {
           case (block, op) if block.condition.evaluated.truthValue.canBe(block.targetTruthValue) => Some(op)
           case _ => None
         }
-
-        DfValue.unify(previousWrites.flatMap(isTrue).map(_.resolve(obj)))
-      } else DfNothing
-    }
+        previousWrites.iterator.flatMap(isTrue)
+      } else Iterator.empty
 
     def toText: String = s"$this: *.$property <- ${previousWrites.map(w => w._2.toString + " if " + w._1).mkString(" | ")}"
 
+    override def resolve(obj: DfAbstractAny): DfAbstractAny =
+      DfValue.unify(activeSources.map(_.resolve(obj)))
+
     override def index: Int = PropertyPhiOperation.this.index
+
+    override def propagateFilter(obj: DfConcreteAnyRef, filter: DfAbstractAny): Unit = {
+      val actives = activeSources
+      if (actives.hasNext) {
+        val single = actives.next()
+        if (!actives.hasNext) {
+          single.propagateFilter(obj, filter)
+        }
+      }
+    }
   }
 }
 
-final class WritePropertyOperation(val base: Value[DfAbstractAny],
+final class WritePropertyOperation(val base: Value,
                                    val property: String,
-                                   val input: Value[DfAbstractAny],
+                                   val input: Value,
                                    val previousWrite: PropertyMemorySource)
   extends Operation
     with PropertyMemorySource
@@ -204,20 +279,33 @@ final class WritePropertyOperation(val base: Value[DfAbstractAny],
   }
 
   override def toText: String = s"$this: $base.$property <- $input [$previousWrite]"
+
+  override def propagateFilter(obj: DfConcreteAnyRef, filter: DfAbstractAny): Unit =
+    this.base.evaluated match {
+      case ref: DfConcreteAnyRef => input.setFilter(filter)
+      case _ =>
+    }
 }
 
-final class ReadPropertyOperation(val base: Value[DfAbstractAny],
+final class ReadPropertyOperation(val base: Value,
                                   val property: String,
-                                  val previousWrite: PropertyMemorySource) extends Value[DfAbstractAny] {
+                                  val previousWrite: PropertyMemorySource) extends Value {
   override protected def processInner(): Unit = {
     val obj = base.evaluated
     evaluated = previousWrite.resolve(obj)
   }
 
   override def toText: String = s"$this <- $base.$property [$previousWrite]"
+
+  override protected[this] def propagateFilter(filterValue: DfAbstractAny): Unit = {
+    this.base.evaluated match {
+      case ref: DfConcreteAnyRef => previousWrite.propagateFilter(ref, filterValue)
+      case _ =>
+    }
+  }
 }
 
-final class Summary(val values: Seq[Value[DfAbstractAny]], val previousWrite: Map[String, PropertyMemorySource], localScope: DfConcreteObjectRef) extends Operation {
+final class Summary(val values: Seq[Value], val previousWrite: Map[String, PropertyMemorySource], localScope: DfConcreteObjectRef) extends Operation {
 
   override protected def processInner(): Unit = ()
 
@@ -242,4 +330,19 @@ final class Summary(val values: Seq[Value[DfAbstractAny]], val previousWrite: Ma
   }
 
   override def toText: String = s"summary"
+}
+
+final class Call(val func: Value, args: Seq[Value]) extends Value {
+  private val inlined = mutable.Map.empty[DfConcreteLambdaRef, Array[Operation]]
+
+  override protected def processInner(): Unit = {
+    val f = func.evaluated
+
+    evaluated = DfValue.unify(f.concreteRefs.collect {
+      case ref: DfConcreteLambdaRef => ???
+      case DfConcreteInternalFunc("rand") => DfAny
+    })
+  }
+
+  override def toText: String = s"$this <- $func(${args.mkString(", ")})"
 }

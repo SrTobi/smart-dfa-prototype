@@ -81,7 +81,7 @@ case class FactsImpl(claims: Map[DfValue, Boolean], pins: Map[PinnedValue, PinDe
             first = false
             result ++= map.concreteValues
           } else
-            result = result.mergeWithDefaul(map.concreteValues, DfAny)(_ unify _)
+            result = result.mergeWithDefault(map.concreteValues, DfAny)(_ unify _)
         } else {
           //print("")
         }

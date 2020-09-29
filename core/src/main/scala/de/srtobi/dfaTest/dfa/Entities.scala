@@ -56,6 +56,12 @@ sealed trait DfAbstractAny extends DfValue[Any, Nothing] {
     case DfAbstractUnion(values) => values.iterator.flatMap(_.concreteObjectRefs)
     case _ => Iterator.empty
   }
+
+  def concreteRefs: Iterator[DfConcreteAnyRef] = this match {
+    case any: DfConcreteAnyRef => Iterator(any)
+    case DfAbstractUnion(values) => values.iterator.flatMap(_.concreteRefs)
+    case _ => Iterator.empty
+  }
 }
 
 object DfAbstractAny {
@@ -271,12 +277,7 @@ object DfValue {
     setBuilder ++= bool
     setBuilder ++= int
 
-    val set = setBuilder.result()
-    set.size match {
-      case 0 => DfNothing
-      case 1 => set.head
-      case _ => DfAbstractUnion(set)
-    }
+    fromSet(setBuilder.result())
   }
 
   def intersect(first: DfAbstractAny, rest: DfAbstractAny*): DfAbstractAny = intersect(first +: rest)
@@ -308,13 +309,13 @@ object DfValue {
       }
     }
 
-    a.iterator.map(toSet).reduceOption(combine).fold(DfAny: DfAbstractAny) {
-      set =>
-        set.size match {
-          case 0 => DfNothing
-          case 1 => set.head
-          case _ => DfAbstractUnion(set)
-        }
-    }
+    a.iterator.map(toSet).reduceOption(combine).fold(DfAny: DfAbstractAny)(fromSet)
   }
+
+  def fromSet(set: Set[DfAbstractAny]): DfAbstractAny =
+    set.size match {
+      case 0 => DfNothing
+      case 1 => set.head
+      case _ => DfAbstractUnion(set)
+    }
 }

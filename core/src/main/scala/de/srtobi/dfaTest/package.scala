@@ -16,7 +16,7 @@ package object dfaTest {
         })
       }.toMap
 
-    def mergeWithDefaul(other: Map[K, V], default: V)(mergeF: (V, V) => V): Map[K, V] =
+    def mergeWithDefault(other: Map[K, V], default: V)(mergeF: (V, V) => V): Map[K, V] =
       (map.keySet | other.keySet).iterator.map { key =>
         key -> ((map.get(key), other.get(key)) match {
           case (Some(a), Some(b)) => mergeF(a, b)

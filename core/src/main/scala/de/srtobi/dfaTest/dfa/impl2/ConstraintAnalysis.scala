@@ -16,14 +16,14 @@ class ConstraintAnalysis(stdLib: Seq[(String, DfConcreteAny)] = DataFlowAnalysis
 
   override def preludePtr: cfg.Instruction = null
   override def initialState(instructions: cfg.ControlFlowGraph, input: Seq[(String, DfConcreteAny)]): (InstructionPtr, State) =
-    instructions.entryInstruction -> GatherState.empty
+    instructions.entryInstruction -> GatherState.withRand
 
   var result: Option[GatherState] = None
 
-  override def process(instruction: InstructionPtr, states: Iterable[State]): Seq[(InstructionPtr, State)] = try {
+  override def process(instruction: InstructionPtr, states: Iterable[State]): Seq[(InstructionPtr, State)] = {
     val state = GatherState.unify(states)
 
-    def load(value: DfVarOrValue): Value[DfAbstractAny] = {
+    def load(value: DfVarOrValue): Value = {
       value match {
         case reg: DfRegister => state.register(reg)
         case v: DfVariable => state.readProp(state.global.localScope, v.name)
@@ -31,11 +31,10 @@ class ConstraintAnalysis(stdLib: Seq[(String, DfConcreteAny)] = DataFlowAnalysis
       }
     }
 
-    def store(target: DfVariable, value: Value[DfAbstractAny]): Unit = {
+    def store(target: DfVariable, value: Value): Unit = {
       target match {
         case reg: DfRegister => state.newRegister(reg, value)
         case v: DfVariable => state.writeProp(state.global.localScope, v.name, value)
-        case v: DfAbstractAny => state.constant(v)
       }
     }
 
@@ -123,7 +122,7 @@ class ConstraintAnalysis(stdLib: Seq[(String, DfConcreteAny)] = DataFlowAnalysis
             case _ => ???
           }
         target.fold(state)(state.withStore(_, result))*/
-        load(func) match {
+        /*load(func) match {
           case c: Constant[_] =>
             c.value match {
               case DfConcreteInternalFunc("rand") =>
@@ -134,7 +133,9 @@ class ConstraintAnalysis(stdLib: Seq[(String, DfConcreteAny)] = DataFlowAnalysis
               case _ => ???
             }
           case _ => ???
-        }
+        }*/
+        val res = state.newFunction(load(func), argSources.map(load))
+        target.foreach(store(_, res))
 
       case cfg.ReadProp(target, base, prop) =>
         store(target, state.readProp(load(base), prop))
